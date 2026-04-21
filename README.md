@@ -298,6 +298,15 @@ Tests are split across three files, all using Fastify's `inject()` with **real**
 
 ---
 
+## Contributing
+
+Short-lived feature branches, squash-merged into `main`. No direct commits on `main`. Tags `v*` trigger the npm publish.
+
+- [CONTRIBUTING.md](CONTRIBUTING.md) - branching model, PR guidelines, code style, local testing flow
+- [RELEASE.md](RELEASE.md) - tag-based release, OIDC trusted publishing, guards, recovery paths
+
+---
+
 ## License
 
 [AGPL-3.0](LICENSE)
