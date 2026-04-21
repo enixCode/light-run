@@ -99,8 +99,8 @@ First publish needs the package name reserved; after that, the trusted publisher
 
 | User wants | Command |
 |---|---|
-| Latest stable | `npm i light-run` |
-| Specific release | `npm i light-run@0.2.0` |
+| Latest stable | `npm i @enixcode/light-run` |
+| Specific release | `npm i @enixcode/light-run@0.2.0` |
 | Latest main (unpublished) | `npm i github:enixCode/light-run#main` |
 
 ## When things go wrong
