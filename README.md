@@ -40,10 +40,12 @@ Use `light-runner` when you already have a folder on disk. Use `light-run` when 
 ## Install
 
 ```bash
-npm install -g light-run
+npm install -g @enixcode/light-run
 # or
-npm install light-run      # use as a library
+npm install @enixcode/light-run      # use as a library
 ```
+
+> Published under the `@enixcode` npm scope because the unscoped name collides with an unrelated existing package. The CLI binary stays `light-run` and the GitHub repo stays `enixCode/light-run`.
 
 **Requirements**
 
@@ -63,7 +65,7 @@ light-run serve --token $(openssl rand -hex 32)
 Or as a library:
 
 ```ts
-import { createServer } from 'light-run';
+import { createServer } from '@enixcode/light-run';
 
 const server = await createServer({
   token: process.env.LIGHT_RUN_TOKEN,
@@ -218,7 +220,7 @@ Options:
 `light-run` is a thin HTTP boundary over `light-runner` - the two packages share several field shapes (`image`, `timeout`, `network`, `env`, `workdir`, `input`, `extract` semantics). Rather than redefine everything, `light-run` re-exports the 1:1 types directly from `light-runner`:
 
 ```ts
-import type { Runtime, RunnerOptions, ExtractResult } from 'light-run';
+import type { Runtime, RunnerOptions, ExtractResult } from '@enixcode/light-run';
 // identical to `import type { ... } from 'light-runner'`
 ```
 

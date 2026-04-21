@@ -74,7 +74,7 @@ jobs:
       - name: Check if version already on npm
         id: npm_check
         run: |
-          if npm view "light-run@${{ steps.v.outputs.version }}" version >/dev/null 2>&1; then
+          if npm view "@enixcode/light-run@${{ steps.v.outputs.version }}" version >/dev/null 2>&1; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
             echo "Version already on npm - skipping publish."
           else

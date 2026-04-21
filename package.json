@@ -1,5 +1,5 @@
 {
-  "name": "light-run",
+  "name": "@enixcode/light-run",
   "version": "0.1.0",
   "description": "Run a Docker container from an HTTP request. Thin wrapper around light-runner.",
   "type": "module",
