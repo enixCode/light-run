@@ -1,25 +1,44 @@
 name: Release
 
-# Only runs on a new version tag push (e.g. v0.1.0, v1.0.0).
-# Creates a GitHub Release + publishes the package to npm via Trusted Publishing (OIDC).
+# Triggered by:
+# - push to main: move mobile 'alpha' git tag, no npm publish
+# - push tag v*:  publish to npm (@latest) + move 'latest' mobile tag + GitHub Release
 #
-# Workflow:
-#   npm version patch        # or minor / major
-#   git push && git push --tags
-#
-# Pushing the tag triggers this workflow. Pushing to main alone does nothing.
+# Releases are explicit: you have to create and push a tag v<version> to
+# publish. Pushing to main only moves the 'alpha' mobile tag so downstream
+# consumers can pin to `github:enixCode/light-run#alpha` for the latest
+# main HEAD without waiting for a stable npm release.
 
 on:
   push:
+    branches: [main]
     tags: ['v*']
 
 jobs:
+  # Lightweight: just re-point the 'alpha' mobile tag at main HEAD.
+  move-alpha:
+    if: github.ref_type == 'branch' && github.ref_name == 'main'
+    name: Move mobile 'alpha' git tag
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Move mobile 'alpha' git tag
+        run: |
+          git tag -f alpha
+          git push origin alpha --force
+
+  # Full publish flow on v* tag push.
   release:
+    if: github.ref_type == 'tag'
     name: Build + publish to npm
     runs-on: ubuntu-latest
 
     permissions:
-      contents: write   # create GitHub Release
+      contents: write   # create GitHub Release + move 'latest' mobile tag
       id-token: write   # npm provenance + trusted publishing
 
     steps:
@@ -88,6 +107,12 @@ jobs:
         # the package exists (Settings -> Trusted Publishers).
         if: steps.npm_check.outputs.exists == 'false'
         run: npm publish --access public --provenance
+
+      - name: Move mobile 'latest' git tag
+        if: steps.npm_check.outputs.exists == 'false'
+        run: |
+          git tag -f latest
+          git push origin latest --force
 
       - name: Create GitHub Release
         if: steps.npm_check.outputs.exists == 'false'
