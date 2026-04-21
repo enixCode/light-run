@@ -1,0 +1,23 @@
+#!/usr/bin/env sh
+# Pre-commit hook for light-run.
+# Regenerates docs/api/ ONLY if files under src/ are staged. Keeps the commit
+# UX snappy for pure-test or pure-config commits.
+#
+# Installed by: npm run setup:hooks
+# Source of truth: scripts/hooks/pre-commit (this file)
+
+set -e
+
+# List every staged file (added, copied, modified, renamed). Empty if nothing.
+staged=$(git diff --cached --name-only --diff-filter=ACMR)
+
+# Only regenerate if at least one src/ file is staged.
+echo "$staged" | grep -qE '^src/' || exit 0
+
+echo "[pre-commit] src/ changed - regenerating docs/api/ ..."
+npm run --silent docs > /dev/null
+
+# Stage the regenerated docs so they land in the same commit.
+git add docs/api/
+
+echo "[pre-commit] docs/api/ updated and staged."

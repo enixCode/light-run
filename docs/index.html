@@ -1,0 +1,874 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>light-run - HTTP wrapper around light-runner</title>
+<meta name="description" content="Thin HTTP layer over light-runner. Send files + image + entrypoint over HTTP, get back exit code and extracted artifacts. Nothing else." />
+<meta name="theme-color" content="#050608" />
+
+<meta property="og:title" content="light-run" />
+<meta property="og:description" content="Thin HTTP wrapper around light-runner. POST files, get a Docker container run result." />
+<meta property="og:type" content="website" />
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT,WONK@9..144,300..700,0..100,0..1&family=IBM+Plex+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<style>
+  :root {
+    --ink:          #050608;
+    --ink-2:        #0a0c10;
+    --ink-3:        #12151c;
+    --line:         #1a1d24;
+    --line-hot:     #242933;
+    --paper:        #edeef0;
+    --paper-dim:    #8a8f9a;
+    --paper-dimmer: #4d525c;
+    --halo:         #c7e8ff;
+    --halo-soft:    #7fddff;
+    --amber:        #ffb855;
+    --ember:        #ff6b35;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--ink);
+    color: var(--paper);
+    font-family: 'IBM Plex Sans', system-ui, sans-serif;
+    font-weight: 300;
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+    min-height: 100vh;
+    background-image:
+      radial-gradient(ellipse 80% 60% at 50% 0%, rgba(127, 221, 255, 0.04), transparent 70%),
+      linear-gradient(var(--line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--line) 1px, transparent 1px);
+    background-size: 100% 100%, 80px 80px, 80px 80px;
+    background-position: 0 0, 0 0, 0 0;
+    background-attachment: fixed, fixed, fixed;
+  }
+
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.06 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+    opacity: 0.45;
+    mix-blend-mode: screen;
+    z-index: 1;
+  }
+
+  main, header, footer { position: relative; z-index: 2; }
+
+  /* ---------- typography ---------- */
+
+  .display {
+    font-family: 'Fraunces', serif;
+    font-variation-settings: "SOFT" 50, "WONK" 1;
+    font-weight: 350;
+    letter-spacing: -0.02em;
+    line-height: 1;
+  }
+  .label {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 500;
+    font-size: 11px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--paper-dim);
+  }
+  .label::before {
+    content: "// ";
+    color: var(--halo-soft);
+  }
+  code, pre, .mono {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+  }
+
+  /* ---------- layout ---------- */
+
+  .shell {
+    max-width: 1240px;
+    margin: 0 auto;
+    padding: 0 clamp(24px, 5vw, 64px);
+  }
+
+  /* ---------- top bar ---------- */
+
+  header.top {
+    padding: 28px 0 0;
+  }
+  .top-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--line);
+  }
+  .mark {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    font-family: 'Fraunces', serif;
+    font-weight: 400;
+    font-size: 17px;
+    letter-spacing: -0.01em;
+    color: var(--paper);
+    text-decoration: none;
+  }
+  .mark-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: var(--halo);
+    box-shadow: 0 0 14px var(--halo-soft), 0 0 3px #fff inset;
+  }
+  .mark em {
+    font-style: italic;
+    font-weight: 300;
+    color: var(--paper-dim);
+    font-size: 12px;
+    margin-left: 6px;
+  }
+  nav.top-nav {
+    display: flex; gap: 28px;
+  }
+  nav.top-nav a {
+    font-size: 12px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 400;
+    color: var(--paper-dim);
+    text-decoration: none;
+    transition: color .2s;
+  }
+  nav.top-nav a:hover { color: var(--paper); }
+  nav.top-nav a:hover::before { content: "› "; color: var(--halo-soft); }
+  @media (max-width: 720px) {
+    nav.top-nav a:not(.primary) { display: none; }
+  }
+  nav.top-nav a.primary {
+    color: var(--ink);
+    background: var(--halo);
+    padding: 8px 14px;
+    border-radius: 2px;
+  }
+  nav.top-nav a.primary::before { display: none !important; }
+
+  /* ---------- hero ---------- */
+
+  section.hero {
+    padding: clamp(60px, 10vh, 120px) 0 60px;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 60px;
+    align-items: end;
+  }
+
+  .hero-headline { max-width: 860px; }
+  .hero-eyebrow {
+    display: flex; align-items: center; gap: 14px;
+    margin-bottom: 32px;
+    opacity: 0; transform: translateY(8px);
+    animation: rise .9s .1s forwards cubic-bezier(.2,.7,.2,1);
+  }
+  .hero-eyebrow .v { color: var(--halo-soft); font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.18em; }
+  .hero-eyebrow .divider { width: 36px; height: 1px; background: var(--line-hot); }
+  .hero-eyebrow .tag { font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--paper-dim); }
+
+  h1.display {
+    font-size: clamp(52px, 9vw, 124px);
+    opacity: 0; transform: translateY(16px);
+    animation: rise 1s .15s forwards cubic-bezier(.2,.7,.2,1);
+  }
+  h1.display .accent {
+    font-style: italic;
+    font-weight: 300;
+    color: var(--halo);
+  }
+  h1.display .shy {
+    font-style: italic;
+    font-weight: 300;
+    color: var(--paper-dim);
+  }
+
+  .hero-lede {
+    font-family: 'Fraunces', serif;
+    font-weight: 300;
+    font-size: clamp(18px, 2vw, 22px);
+    line-height: 1.45;
+    color: var(--paper);
+    max-width: 640px;
+    margin-top: 36px;
+    opacity: 0; transform: translateY(12px);
+    animation: rise 1s .3s forwards cubic-bezier(.2,.7,.2,1);
+  }
+  .hero-lede em {
+    color: var(--paper-dim);
+    font-style: italic;
+  }
+
+  .hero-meta {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 24px 48px;
+    margin-top: 48px;
+    padding-top: 28px;
+    border-top: 1px solid var(--line);
+    opacity: 0; transform: translateY(12px);
+    animation: rise 1s .45s forwards cubic-bezier(.2,.7,.2,1);
+  }
+  .hero-meta .cell { }
+  .hero-meta .k { font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--paper-dimmer); margin-bottom: 6px; }
+  .hero-meta .v { font-family: 'Fraunces', serif; font-size: 22px; font-weight: 350; letter-spacing: -0.01em; }
+  .hero-meta .v .sub { color: var(--paper-dim); font-size: 13px; margin-left: 6px; font-family: 'JetBrains Mono', monospace; letter-spacing: 0; text-transform: none; }
+
+  /* ---------- section frame ---------- */
+
+  section {
+    padding: clamp(80px, 12vh, 140px) 0;
+    border-top: 1px solid var(--line);
+    position: relative;
+  }
+  section .section-head {
+    display: grid;
+    grid-template-columns: 160px 1fr;
+    gap: 48px;
+    margin-bottom: 64px;
+    align-items: baseline;
+  }
+  section .section-head .label { padding-top: 10px; }
+  section h2 {
+    font-family: 'Fraunces', serif;
+    font-weight: 350;
+    font-style: italic;
+    font-size: clamp(32px, 4.5vw, 56px);
+    letter-spacing: -0.015em;
+    line-height: 1.05;
+    max-width: 820px;
+  }
+  section h2 .strong {
+    font-style: normal;
+    color: var(--halo);
+    font-variation-settings: "WONK" 1;
+  }
+  @media (max-width: 720px) {
+    section .section-head { grid-template-columns: 1fr; gap: 8px; margin-bottom: 36px; }
+  }
+
+  /* ---------- primitives grid ---------- */
+
+  .prims {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 0;
+    border-top: 1px solid var(--line);
+  }
+  .prim {
+    padding: 36px 32px 40px;
+    border-bottom: 1px solid var(--line);
+    border-right: 1px solid var(--line);
+    position: relative;
+    transition: background .25s;
+  }
+  .prim:hover { background: var(--ink-2); }
+  .prim:last-child { border-right: 1px solid var(--line); }
+  @media (max-width: 720px) { .prim { border-right: none !important; } }
+
+  .prim .num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--halo-soft);
+    letter-spacing: 0.2em;
+    margin-bottom: 32px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .prim .num::after {
+    content: ""; flex: 1; height: 1px; background: var(--line-hot);
+  }
+  .prim h3 {
+    font-family: 'Fraunces', serif;
+    font-weight: 400;
+    font-size: 24px;
+    line-height: 1.15;
+    margin-bottom: 14px;
+    letter-spacing: -0.01em;
+  }
+  .prim h3 em { color: var(--halo); font-style: italic; font-weight: 300; }
+  .prim p {
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--paper-dim);
+    max-width: 34ch;
+  }
+
+  /* ---------- code block ---------- */
+
+  .code-window {
+    border: 1px solid var(--line);
+    background: var(--ink-2);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-top: 8px;
+  }
+  .code-window .bar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--line);
+    background: var(--ink-3);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--paper-dimmer);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+  }
+  .code-window .bar .pills {
+    display: inline-flex; gap: 6px;
+  }
+  .code-window .bar .pills i {
+    width: 8px; height: 8px; border-radius: 50%; display: inline-block;
+    background: #2a2f38;
+  }
+  .code-window .bar .pills i:first-child { background: #ff5f57; opacity: .55; }
+  .code-window .bar .pills i:nth-child(2) { background: #febc2e; opacity: .55; }
+  .code-window .bar .pills i:nth-child(3) { background: #28c840; opacity: .55; }
+  .code-window pre {
+    padding: 28px 32px;
+    overflow-x: auto;
+    font-size: 13px;
+    line-height: 1.75;
+    color: var(--paper);
+  }
+  .code-window pre .k { color: var(--halo-soft); }
+  .code-window pre .s { color: #f5d796; }
+  .code-window pre .c { color: var(--paper-dimmer); font-style: italic; }
+  .code-window pre .f { color: var(--paper); }
+  .code-window pre .p { color: var(--paper-dim); }
+  .code-window pre .n { color: #c8b6ff; }
+  button.copy {
+    background: transparent;
+    border: 1px solid var(--line-hot);
+    color: var(--paper-dim);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    padding: 4px 10px;
+    cursor: pointer;
+    border-radius: 2px;
+    transition: all .2s;
+  }
+  button.copy:hover { color: var(--ink); background: var(--halo); border-color: var(--halo); }
+  button.copy.done { color: var(--ink); background: var(--halo-soft); border-color: var(--halo-soft); }
+
+  /* ---------- quick-start split ---------- */
+
+  .qstart {
+    display: grid;
+    grid-template-columns: 5fr 7fr;
+    gap: 64px;
+    align-items: start;
+  }
+  @media (max-width: 900px) { .qstart { grid-template-columns: 1fr; gap: 36px; } }
+
+  .qstart .side p {
+    font-family: 'Fraunces', serif;
+    font-size: 19px;
+    line-height: 1.55;
+    color: var(--paper);
+    font-weight: 300;
+  }
+  .qstart .side p + p { margin-top: 18px; color: var(--paper-dim); }
+  .qstart .side .install {
+    margin-top: 28px;
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    padding: 12px 18px;
+    border: 1px solid var(--line-hot);
+    background: var(--ink-2);
+    border-radius: 2px;
+  }
+  .qstart .side .install::before {
+    content: "$"; color: var(--halo-soft);
+  }
+
+  /* ---------- security block ---------- */
+
+  .sec-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    border-top: 1px solid var(--line);
+  }
+  .sec-grid .row {
+    display: contents;
+  }
+  .sec-grid .k, .sec-grid .v {
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--line);
+  }
+  .sec-grid .k {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 0.05em;
+    color: var(--halo-soft);
+    border-right: 1px solid var(--line);
+  }
+  .sec-grid .v {
+    font-size: 14px;
+    color: var(--paper-dim);
+    line-height: 1.6;
+  }
+  .sec-grid .v strong { color: var(--paper); font-weight: 400; }
+  @media (max-width: 720px) {
+    .sec-grid { grid-template-columns: 1fr; }
+    .sec-grid .k { border-right: none; padding-bottom: 4px; }
+    .sec-grid .v { padding-top: 4px; }
+  }
+
+  .sec-note {
+    margin-top: 40px;
+    padding: 20px 24px;
+    border-left: 2px solid var(--amber);
+    background: rgba(255, 184, 85, 0.04);
+    font-size: 14px;
+    color: var(--paper-dim);
+    line-height: 1.6;
+  }
+  .sec-note strong { color: var(--amber); font-weight: 500; }
+
+  /* ---------- ecosystem cards ---------- */
+
+  .eco {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+  }
+  @media (max-width: 900px) { .eco { grid-template-columns: 1fr; } }
+
+  .eco-card {
+    padding: 32px 28px 28px;
+    border: 1px solid var(--line);
+    background: linear-gradient(180deg, var(--ink-2) 0%, var(--ink) 100%);
+    border-radius: 2px;
+    position: relative;
+    overflow: hidden;
+    transition: border-color .25s, transform .25s;
+  }
+  .eco-card:hover { border-color: var(--line-hot); transform: translateY(-2px); }
+  .eco-card.this {
+    border-color: var(--halo-soft);
+    background: linear-gradient(180deg, rgba(127,221,255,0.06) 0%, var(--ink) 100%);
+  }
+  .eco-card.this::after {
+    content: "this repo";
+    position: absolute;
+    top: 16px; right: 16px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--ink);
+    background: var(--halo);
+    padding: 4px 8px;
+    border-radius: 2px;
+  }
+  .eco-card .mono-name {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 500;
+    font-size: 15px;
+    color: var(--paper);
+    margin-bottom: 18px;
+  }
+  .eco-card h3 {
+    font-family: 'Fraunces', serif;
+    font-weight: 400;
+    font-size: 20px;
+    line-height: 1.2;
+    margin-bottom: 10px;
+    letter-spacing: -0.01em;
+  }
+  .eco-card p {
+    font-size: 13px;
+    color: var(--paper-dim);
+    line-height: 1.55;
+  }
+  .eco-card .status {
+    margin-top: 22px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--paper-dimmer);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .eco-card .status::before {
+    content: ""; width: 6px; height: 6px; border-radius: 50%;
+    background: var(--paper-dimmer);
+  }
+  .eco-card.this .status::before { background: var(--halo); box-shadow: 0 0 10px var(--halo-soft); }
+  .eco-card.this .status { color: var(--halo-soft); }
+
+  /* ---------- footer ---------- */
+
+  footer {
+    padding: 56px 0 48px;
+    border-top: 1px solid var(--line);
+  }
+  .foot-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    flex-wrap: wrap;
+    gap: 32px;
+  }
+  .foot-row .sig {
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-weight: 300;
+    font-size: 14px;
+    color: var(--paper-dim);
+    max-width: 320px;
+    line-height: 1.5;
+  }
+  .foot-links {
+    display: flex; gap: 32px;
+  }
+  .foot-links a {
+    color: var(--paper-dim);
+    text-decoration: none;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    transition: color .2s;
+  }
+  .foot-links a:hover { color: var(--halo); }
+  .foot-meta {
+    margin-top: 36px;
+    padding-top: 20px;
+    border-top: 1px solid var(--line);
+    display: flex;
+    justify-content: space-between;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--paper-dimmer);
+  }
+
+  /* ---------- motion ---------- */
+
+  @keyframes rise {
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+    .hero-eyebrow, h1.display, .hero-lede, .hero-meta {
+      opacity: 1 !important;
+      transform: none !important;
+    }
+  }
+
+  /* ---------- focus ---------- */
+  a:focus-visible, button:focus-visible {
+    outline: 1px solid var(--halo);
+    outline-offset: 3px;
+  }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="shell">
+    <div class="top-row">
+      <a class="mark" href="#">
+        <span class="mark-dot" aria-hidden="true"></span>
+        <span>light-run</span>
+        <em data-version>v0.1.0</em>
+      </a>
+      <nav class="top-nav" aria-label="primary">
+        <a href="#primitives">Primitives</a>
+        <a href="#quick-start">Quick start</a>
+        <a href="#security">Security</a>
+        <a href="#ecosystem">Ecosystem</a>
+        <a href="./api/">API</a>
+        <a href="https://github.com/enixCode/light-run" class="primary">GitHub -&gt;</a>
+      </nav>
+    </div>
+  </div>
+</header>
+
+<main>
+
+<!-- ============ HERO ============ -->
+<section class="hero">
+  <div class="shell">
+    <div class="hero-eyebrow">
+      <span class="v" data-version>v0.1.0</span>
+      <span class="divider"></span>
+      <span class="tag">HTTP layer - experimental</span>
+    </div>
+
+    <div class="hero-headline">
+      <h1 class="display">
+        Run a container,<br>
+        <span class="shy">over</span> <span class="accent">HTTP</span>.
+      </h1>
+
+      <p class="hero-lede">
+        A Fastify wrapper around <code>light-runner</code>. POST files, an image, and an entrypoint -
+        get back <em>the exit code, artifacts you asked for, and a run id to poll or delete.</em>
+        Nothing else.
+      </p>
+
+      <div class="hero-meta">
+        <div class="cell">
+          <div class="k">Runtime</div>
+          <div class="v">Node <span class="sub">&gt;=22</span></div>
+        </div>
+        <div class="cell">
+          <div class="k">Routes</div>
+          <div class="v">8 <span class="sub">endpoints</span></div>
+        </div>
+        <div class="cell">
+          <div class="k">Dependencies</div>
+          <div class="v">3 <span class="sub">fastify, light-runner, zod</span></div>
+        </div>
+        <div class="cell">
+          <div class="k">Tests</div>
+          <div class="v">38 / 38 <span class="sub">e2e + adversarial</span></div>
+        </div>
+        <div class="cell">
+          <div class="k">License</div>
+          <div class="v">AGPL <span class="sub">3.0</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ PRIMITIVES ============ -->
+<section id="primitives">
+  <div class="shell">
+    <div class="section-head">
+      <div class="label">what you get</div>
+      <h2>Post a JSON body. Get back an <span class="strong">exit code</span>, logs, and the files you extracted.</h2>
+    </div>
+
+    <div class="prims">
+      <div class="prim">
+        <div class="num">01 / files inline</div>
+        <h3>Send files <em>in the body</em>. Run them in a tmpdir.</h3>
+        <p>The body carries your files as a <code>{ path -> content }</code> map. Written to a tmpdir, seeded as the container workdir, torn down as soon as the container exits.</p>
+      </div>
+      <div class="prim">
+        <div class="num">02 / artifacts out</div>
+        <h3>Pull <em>any file</em> back over HTTP.</h3>
+        <p>List paths in <code>extract</code>. They land in an internal artifact directory, served by <code>GET /runs/:id/artifacts/*</code>. Path-traversal guarded, binary-safe, subdirectories listed on hit.</p>
+      </div>
+      <div class="prim">
+        <div class="num">03 / sync or async</div>
+        <h3>Respond when done, or <em>hand back a handle</em>.</h3>
+        <p>Default: wait for exit, return the full run state. Set <code>async: true</code> for <code>202 Accepted</code> + an id to poll, <code>DELETE</code>, or cancel. Optional HMAC-signed callback when it finishes.</p>
+      </div>
+      <div class="prim">
+        <div class="num">04 / auto-evict</div>
+        <h3>Artifacts self-clean past a <em>size cap</em>.</h3>
+        <p>Default 20 GiB across all runs. When the cap is exceeded, oldest-created directories go first - the just-finished run and anything still running are protected. Configurable via env var.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ QUICK START ============ -->
+<section id="quick-start">
+  <div class="shell">
+    <div class="section-head">
+      <div class="label">quick start</div>
+      <h2>One <span class="strong">curl</span> away from an isolated run.</h2>
+    </div>
+
+    <div class="qstart">
+      <div class="side">
+        <p>Install, start the server with a bearer token, <code>POST /run</code> with an image, an entrypoint and some files. Extract anything the container wrote to disk.</p>
+        <p>No config file. No workflow engine. No vendor SDK.</p>
+        <span class="install">npm install -g light-run</span>
+      </div>
+
+      <div class="code-window">
+        <div class="bar">
+          <span class="pills"><i></i><i></i><i></i></span>
+          <span>example.sh</span>
+          <button class="copy" type="button" aria-label="Copy code" data-copy>Copy</button>
+        </div>
+<pre id="code-sample"><span class="c"># start the server (pick one)</span>
+<span class="f">light-run</span> serve <span class="k">--token</span> <span class="s">$(openssl rand -hex 32)</span>
+<span class="c">#  or: npm run dev      # docker compose up --build, port 3001</span>
+
+<span class="c"># from another shell</span>
+<span class="f">curl</span> <span class="k">-X</span> POST http://localhost:3000/run \
+  <span class="k">-H</span> <span class="s">"Authorization: Bearer $TOKEN"</span> \
+  <span class="k">-H</span> <span class="s">"Content-Type: application/json"</span> \
+  <span class="k">-d</span> <span class="s">'{
+    "image": "alpine:3.19",
+    "entrypoint": "sh main.sh",
+    "files": { "main.sh": "echo hi > /app/out.txt" },
+    "extract": ["/app/out.txt"],
+    "network": "none",
+    "timeout": 30000
+  }'</span>
+
+<span class="c"># -> { id, status, exitCode, durationMs, artifacts }</span></pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ SECURITY ============ -->
+<section id="security">
+  <div class="shell">
+    <div class="section-head">
+      <div class="label">security model</div>
+      <h2><span class="strong">Hardened</span> by inheritance, tightened at the edge.</h2>
+    </div>
+
+    <div class="sec-grid">
+      <div class="row">
+        <div class="k">Runner inheritance</div>
+        <div class="v">Every run goes through <code>light-runner</code> - so you get its <strong>stripped capabilities</strong>, <strong>pids limit</strong>, <strong>memory / CPU caps</strong>, <strong>isolated bridge</strong>, <strong>symlink filter</strong>. Unconditional.</div>
+      </div>
+      <div class="row">
+        <div class="k">Bearer auth</div>
+        <div class="v"><strong>Timing-safe</strong> comparison on every non-<code>/health</code> route. Unset token leaves the server open and prints a startup warning.</div>
+      </div>
+      <div class="row">
+        <div class="k">Body validation</div>
+        <div class="v"><strong>Zod</strong> on every request. No free-form fields reach the runner. File paths must be relative and cannot contain <code>..</code> segments.</div>
+      </div>
+      <div class="row">
+        <div class="k">Body size cap</div>
+        <div class="v">The whole request body is parsed as JSON in memory before Zod validation. Fastify rejects anything past <strong>10 MiB</strong> (default) with <code>413 Payload Too Large</code>. This is a <code>light-run</code> concern only - <code>light-runner</code> reads from disk and does not see the HTTP body. Tune via <code>--body-limit</code>, <code>LIGHT_RUN_BODY_LIMIT</code>, or <code>createServer({ bodyLimit })</code>. The <code>files</code> map is <code>{ path: string }</code>, ideal for source code, shell scripts, small configs. <strong>Binary or very large assets</strong> (datasets, wheels, <code>node_modules</code>) should ship <strong>inside the Docker image</strong> rather than be base64-stuffed into the request - each request is held in memory until validated.</div>
+      </div>
+      <div class="row">
+        <div class="k">Path-traversal guard</div>
+        <div class="v">On <code>GET /runs/:id/artifacts/*</code>: literal <code>..</code> rejected, resolved host path asserted inside the run's artifact directory before any stream.</div>
+      </div>
+      <div class="row">
+        <div class="k">Storage cap</div>
+        <div class="v">Total bytes across all artifact directories compared to <strong>20 GiB</strong> (default) after every run. Oldest dirs evicted until under cap. Currently-running runs and the just-finished run never evicted.</div>
+      </div>
+      <div class="row">
+        <div class="k">HMAC callbacks</div>
+        <div class="v">Async runs optionally POST the final <code>RunState</code> to a URL with header <code>X-Light-Run-Signature: sha256=&lt;hex&gt;</code> = <strong>HMAC_SHA256</strong>(secret, rawBody). Verify before trusting the payload.</div>
+      </div>
+      <div class="row">
+        <div class="k">TLS</div>
+        <div class="v">Not built in. Terminate at <strong>Caddy / nginx / Traefik</strong> - proxies do TLS better than a Node process.</div>
+      </div>
+    </div>
+
+    <div class="sec-note">
+      <strong>Does not cover -</strong> rate limiting, concurrency caps, kernel exploits, <code>runc</code> CVEs. Also out of scope: request / result caching, content-addressable file stores, memoization - those belong in <code>light-process</code>, one layer up. For genuinely hostile code, combine with a safer runtime inside <code>light-runner</code>.
+    </div>
+  </div>
+</section>
+
+<!-- ============ ECOSYSTEM ============ -->
+<section id="ecosystem">
+  <div class="shell">
+    <div class="section-head">
+      <div class="label">ecosystem</div>
+      <h2>Three tools. <span class="strong">Each</span> does one thing.</h2>
+    </div>
+
+    <div class="eco">
+      <article class="eco-card">
+        <div class="mono-name">light-runner</div>
+        <h3>Spawn one container, return exit code and files.</h3>
+        <p>The execution primitive. Domain-agnostic. Zero orchestration. <code>light-run</code> calls straight down into this.</p>
+        <div class="status">Released - v0.9.0</div>
+      </article>
+
+      <article class="eco-card this">
+        <div class="mono-name">light-run</div>
+        <h3>HTTP wrapper around light-runner.</h3>
+        <p>Fastify + 8 routes. Send files inline, pull artifacts out. Same defaults as the runner, plus Bearer auth, Zod validation, and a storage cap.</p>
+        <div class="status">Experimental - <span data-version>v0.1.0</span></div>
+      </article>
+
+      <article class="eco-card">
+        <div class="mono-name">light-process</div>
+        <h3>DAG orchestration, retries, fan-out.</h3>
+        <p>When one container is not enough. Composes runs into pipelines with backoff, concurrency limits, and structured outputs. Calls <code>light-run</code> over HTTP.</p>
+        <div class="status">Planned</div>
+      </article>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="shell">
+    <div class="foot-row">
+      <div class="sig">
+        One request in. One container out. The rest is up to the code inside.
+      </div>
+      <nav class="foot-links" aria-label="footer">
+        <a href="./api/">API</a>
+        <a href="https://github.com/enixCode/light-run">GitHub</a>
+        <a href="https://www.npmjs.com/package/light-run">npm</a>
+        <a href="https://github.com/enixCode/light-run/blob/main/LICENSE">AGPL-3.0</a>
+      </nav>
+    </div>
+    <div class="foot-meta">
+      <span>light-run // HTTP layer</span>
+      <span>built with cc</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+  const btn = document.querySelector('[data-copy]');
+  const src = document.getElementById('code-sample');
+  if (btn && src) {
+    btn.addEventListener('click', async () => {
+      const text = src.innerText.trim();
+      try {
+        await navigator.clipboard.writeText(text);
+        btn.textContent = 'Copied';
+        btn.classList.add('done');
+        setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('done'); }, 1600);
+      } catch { btn.textContent = 'Select'; }
+    });
+  }
+
+  // Sync version display with latest GitHub release.
+  // Falls back silently to whatever is hardcoded (matches package.json at commit time)
+  // if the repo has no release yet, the API rate-limits, or the fetch fails offline.
+  fetch('https://api.github.com/repos/enixCode/light-run/releases/latest', {
+    headers: { 'Accept': 'application/vnd.github+json' }
+  })
+    .then(r => r.ok ? r.json() : null)
+    .then(data => {
+      const tag = data && data.tag_name;
+      if (!tag) return;
+      document.querySelectorAll('[data-version]').forEach(el => {
+        el.textContent = tag;
+      });
+    })
+    .catch(() => { /* keep fallback text */ });
+</script>
+
+</body>
+</html>

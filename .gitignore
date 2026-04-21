@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.env
+*.log
+.DS_Store
+CLAUDE.md
+TODO.md
+NEXT.md
+research.md
+.claude/
+.light-run/
+.artifacts/

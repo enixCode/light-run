@@ -1,0 +1,57 @@
+{
+  "name": "light-run",
+  "version": "0.1.0",
+  "description": "Run a Docker container from an HTTP request. Thin wrapper around light-runner.",
+  "type": "module",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/src/index.d.ts",
+      "import": "./dist/src/index.js"
+    }
+  },
+  "bin": {
+    "light-run": "./dist/src/bin/light-run.js"
+  },
+  "files": [
+    "dist/src/**/*.js",
+    "dist/src/**/*.d.ts",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
+    "build": "npm run clean && tsc",
+    "dev": "docker compose up --build",
+    "test": "npm run clean && tsc -p tsconfig.test.json && node --test \"dist/test/**/*.test.js\"",
+    "test:docker": "docker compose -f docker-compose.test.yml run --rm --build test",
+    "docs": "node -e \"require('node:fs').rmSync('docs/api',{recursive:true,force:true})\" && typedoc",
+    "preversion": "npm run docs && git add docs/api/",
+    "setup:hooks": "node scripts/install-hooks.js",
+    "prepublishOnly": "npm run build"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "keywords": [
+    "docker",
+    "sandbox",
+    "http",
+    "api",
+    "runner"
+  ],
+  "license": "AGPL-3.0",
+  "repository": "github:enixCode/light-run",
+  "homepage": "https://github.com/enixCode/light-run#readme",
+  "devDependencies": {
+    "@types/node": "^25.6.0",
+    "typedoc": "^0.28.19",
+    "typescript": "^6.0.3"
+  },
+  "dependencies": {
+    "fastify": "^5.8.5",
+    "light-runner": "^0.9.0",
+    "zod": "^4.3.6"
+  }
+}

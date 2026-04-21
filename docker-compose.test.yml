@@ -1,0 +1,10 @@
+services:
+  test:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - CI=1
+    tty: false
