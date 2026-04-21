@@ -19,6 +19,8 @@
   <img alt="under heavy development" src="https://img.shields.io/badge/under-heavy%20development-red">
 </p>
 
+> **Experimental - do not use in production.** APIs, defaults and on-disk layout can still change without notice. Pin a commit SHA if you depend on it today.
+
 ---
 
 ## Ecosystem
