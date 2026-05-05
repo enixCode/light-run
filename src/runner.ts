@@ -74,6 +74,14 @@ export async function startRun(req: RunRequest): Promise<{ id: string; done: Pro
     to: artDir,
   }));
 
+  const startedAt = new Date().toISOString();
+  const tracked: ActiveRun = {
+    state: { id, status: 'running', startedAt, logs: [] },
+    cancel: () => {},
+    artifactDir: artDir,
+  };
+  runs.set(id, tracked);
+
   const runner = new DockerRunner();
   const execution = runner.run({
     image: req.image,
@@ -86,15 +94,11 @@ export async function startRun(req: RunRequest): Promise<{ id: string; done: Pro
     env: req.env,
     extract: extractSpecs,
     detached: !!req.async,
+    onLog: (line: string) => {
+      tracked.state.logs?.push(line);
+    },
   });
-
-  const startedAt = new Date().toISOString();
-  const tracked: ActiveRun = {
-    state: { id, status: 'running', startedAt },
-    cancel: () => execution.cancel(),
-    artifactDir: artDir,
-  };
-  runs.set(id, tracked);
+  tracked.cancel = () => execution.cancel();
 
   const done = execution.result.then(
     (result) => {
@@ -107,6 +111,7 @@ export async function startRun(req: RunRequest): Promise<{ id: string; done: Pro
         exitCode: result.exitCode,
         durationMs: result.duration,
         artifacts: artifacts.length ? artifacts : undefined,
+        logs: tracked.state.logs,
       };
       tracked.state = final;
       tracked.cancel = null;
@@ -121,6 +126,7 @@ export async function startRun(req: RunRequest): Promise<{ id: string; done: Pro
         startedAt,
         finishedAt: new Date().toISOString(),
         error: err instanceof Error ? err.message : String(err),
+        logs: tracked.state.logs,
       };
       tracked.state = final;
       tracked.cancel = null;

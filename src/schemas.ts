@@ -67,5 +67,6 @@ export const RunStateSchema = z.object({
   durationMs: z.number().int().nonnegative().optional(),
   artifacts: z.array(ArtifactEntrySchema).optional(),
   error: z.string().optional(),
+  logs: z.array(z.string()).optional(),
 });
 export type RunState = z.infer<typeof RunStateSchema>;
