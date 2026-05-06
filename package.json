@@ -1,6 +1,6 @@
 {
   "name": "@enixcode/light-run",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Run a Docker container from an HTTP request. Thin wrapper around light-runner.",
   "type": "module",
   "main": "./dist/src/index.js",
@@ -32,7 +32,7 @@
     "prepublishOnly": "npm run build"
   },
   "engines": {
-    "node": ">=22"
+    "node": ">=24"
   },
   "keywords": [
     "docker",

@@ -49,7 +49,7 @@ npm install @enixcode/light-run      # use as a library
 
 **Requirements**
 
-- Node.js >= 22
+- Node.js >= 24
 - A running Docker daemon on the host (Docker Desktop, `dockerd`, Lima, OrbStack, ...)
 
 ---
