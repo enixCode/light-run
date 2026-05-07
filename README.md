@@ -313,4 +313,4 @@ Short-lived feature branches, squash-merged into `main`. No direct commits on `m
 
 ## License
 
-[AGPL-3.0](LICENSE)
+[MIT](LICENSE)

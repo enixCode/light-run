@@ -41,7 +41,7 @@
     "api",
     "runner"
   ],
-  "license": "AGPL-3.0",
+  "license": "MIT",
   "repository": "github:enixCode/light-run",
   "homepage": "https://github.com/enixCode/light-run#readme",
   "devDependencies": {
