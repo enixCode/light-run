@@ -46,7 +46,7 @@ export type RunRequest = z.infer<typeof RunRequestSchema>;
    tightens one of these types, this line fails the build and forces a sync.
    Zod schemas live at runtime so true inheritance is impossible - this catches
    the next-best thing (type-level mismatch) at zero runtime cost. */
-type _SharedFields = 'image' | 'timeout' | 'network' | 'env' | 'workdir' | 'input' | 'run' | 'detached';
+type _SharedFields = 'image' | 'entrypoint' | 'timeout' | 'network' | 'env' | 'workdir' | 'input' | 'run' | 'detached';
 type _Assert<T extends true> = T;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 type _RunRequestSharedAlignment = _Assert<

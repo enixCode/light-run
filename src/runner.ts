@@ -80,7 +80,7 @@ export async function startRun(req: RunRequest): Promise<{ id: string; done: Pro
   const runner = new DockerRunner();
   const execution = runner.run({
     image: req.image,
-    command: req.entrypoint,
+    entrypoint: req.entrypoint,
     run: req.run,
     dir: tmpDir,
     input: req.detached ? undefined : req.input,
