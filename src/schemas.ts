@@ -11,7 +11,12 @@ const FilePathKey = z
 export const RunRequestSchema = z.object({
   image: z.string().min(1).max(300),
   entrypoint: z.string().min(1).max(2048).optional(),
-  setup: z.array(z.string().min(1).max(2048)).max(50).optional(),
+  /* Build-time setup steps. Each entry becomes a RUN line in a generated
+     Dockerfile, the result is cached as light-runner-cache:<sha256(image+run)>
+     and reused on identical requests. Executed once at build time, not on every
+     container start. Operator-trusted input - never pass user-supplied strings:
+     docker build does not inherit the runtime sandbox. */
+  run: z.array(z.string().min(1).max(2048)).max(50).optional(),
   files: z.record(FilePathKey, z.string()).refine(
     (r) => Object.keys(r).length > 0,
     { message: 'files must contain at least one entry' },
@@ -29,7 +34,7 @@ export const RunRequestSchema = z.object({
   /* Paths inside the container to extract after success. No "to" - light-run
      stores artifacts internally and serves them via GET /runs/:id/artifacts. */
   extract: z.array(z.string().min(1).max(1024)).max(20).optional(),
-  async: z.boolean().optional(),
+  detached: z.boolean().optional(),
   callbackUrl: z.string().url().optional(),
   callbackSecret: z.string().min(16).max(200).optional(),
 });
@@ -41,7 +46,7 @@ export type RunRequest = z.infer<typeof RunRequestSchema>;
    tightens one of these types, this line fails the build and forces a sync.
    Zod schemas live at runtime so true inheritance is impossible - this catches
    the next-best thing (type-level mismatch) at zero runtime cost. */
-type _SharedFields = 'image' | 'timeout' | 'network' | 'env' | 'workdir' | 'input';
+type _SharedFields = 'image' | 'timeout' | 'network' | 'env' | 'workdir' | 'input' | 'run' | 'detached';
 type _Assert<T extends true> = T;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 type _RunRequestSharedAlignment = _Assert<

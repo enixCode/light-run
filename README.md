@@ -118,7 +118,7 @@ You get back the final run state once the container exits:
 }
 ```
 
-Pass `"async": true` to get `202 Accepted` with an id immediately, then poll `GET /runs/:id` or receive a signed callback on `callbackUrl`.
+Pass `"detached": true` to get `202 Accepted` with an id immediately, then poll `GET /runs/:id` or receive a signed callback on `callbackUrl`.
 
 ### 3. Download artifacts
 
@@ -136,7 +136,7 @@ All endpoints except `/health` require `Authorization: Bearer <token>` when the 
 | Method | Path                            | Description                                                |
 | ------ | ------------------------------- | ---------------------------------------------------------- |
 | GET    | `/health`                       | Liveness (no auth)                                         |
-| POST   | `/run`                          | Start a run. Sync by default, `async: true` returns 202.   |
+| POST   | `/run`                          | Start a run. Sync by default, `detached: true` returns 202.|
 | GET    | `/runs`                         | List tracked runs                                          |
 | GET    | `/runs/:id`                     | Full state of one run                                      |
 | POST   | `/runs/:id/cancel`              | Cancel a running execution                                 |
@@ -155,16 +155,16 @@ All endpoints except `/health` require `Authorization: Bearer <token>` when the 
   image: string;                      // Docker image reference (required)
   files: Record<string, string>;      // relative path -> text content (required, >= 1 entry)
   entrypoint?: string;                // shell command, executed via "sh -c"
-  setup?: string[];                   // commands chained with && before entrypoint
+  run?: string[];                     // build-time RUN steps baked into a cached image
   input?: unknown;                    // JSON piped to stdin (sync runs only)
   timeout?: number;                   // ms, max 60 * 60 * 1000
   network?: string;                   // "none", "bridge", or a named network
   workdir?: string;                   // working directory inside the container
   env?: Record<string, string>;       // env vars (name must match [A-Za-z_][A-Za-z0-9_]*)
   extract?: string[];                 // container paths to pull back after exit
-  async?: boolean;                    // if true, respond 202 and run in background
-  callbackUrl?: string;               // async only: POSTed final RunState
-  callbackSecret?: string;            // async only: HMAC-SHA256 signs callback body
+  detached?: boolean;                 // if true, respond 202 and run in background
+  callbackUrl?: string;               // detached only: POSTed final RunState
+  callbackSecret?: string;            // detached only: HMAC-SHA256 signs callback body
 }
 ```
 
@@ -175,7 +175,7 @@ File paths in `files`:
 
 `extract` paths are container-absolute (e.g. `/app/out.txt`). Extracted files land in an internal artifact directory and are served via `GET /runs/:id/artifacts/*` - clients never specify a host destination.
 
-### Async + callback
+### Detached + callback
 
 ```bash
 curl -X POST http://localhost:3000/run \
@@ -184,7 +184,7 @@ curl -X POST http://localhost:3000/run \
     "image": "alpine:3.19",
     "entrypoint": "echo done",
     "files": { "x": "" },
-    "async": true,
+    "detached": true,
     "callbackUrl": "https://my-app.example.com/hook",
     "callbackSecret": "a-secret-of-16-chars-or-more"
   }'
@@ -296,8 +296,8 @@ npm run test:docker   # same inside a container with the host Docker socket moun
 
 Tests are split across three files, all using Fastify's `inject()` with **real** `light-runner` containers against the host Docker daemon:
 
-- `test/e2e/server.test.ts` (13 tests) - core surface: auth, sync + async runs, artifacts, cancel, delete, list, storage auto-eviction.
-- `test/e2e/languages.test.ts` (8 tests) - Python / Node / shell real workloads: stdin + JSON compute, multi-file project with local import, `crypto.createHash` determinism, env vars, setup chaining, nested directory extraction, multi-MB binary streaming, unicode round-trip.
+- `test/e2e/server.test.ts` (13 tests) - core surface: auth, sync + detached runs, artifacts, cancel, delete, list, storage auto-eviction.
+- `test/e2e/languages.test.ts` (8 tests) - Python / Node / shell real workloads: stdin + JSON compute, multi-file project with local import, `crypto.createHash` determinism, env vars, build-time `run` step, nested directory extraction, multi-MB binary streaming, unicode round-trip.
 - `test/e2e/adversarial.test.ts` (17 tests) - failure paths: malformed/wrong/empty Bearer, Zod rejects (absolute path, `..`, empty files, invalid env name, oversize image/entrypoint), `413 Payload Too Large` on body-limit breach, `..` artifact traversal, timeout kills a `sleep 60` in <10 s, `network: 'none'` actually blocks outbound, shell metacharacters in env values passed literally (no command injection).
 
 ---

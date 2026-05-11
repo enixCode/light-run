@@ -677,9 +677,9 @@
         <p>List paths in <code>extract</code>. They land in an internal artifact directory, served by <code>GET /runs/:id/artifacts/*</code>. Path-traversal guarded, binary-safe, subdirectories listed on hit.</p>
       </div>
       <div class="prim">
-        <div class="num">03 / sync or async</div>
+        <div class="num">03 / sync or detached</div>
         <h3>Respond when done, or <em>hand back a handle</em>.</h3>
-        <p>Default: wait for exit, return the full run state. Set <code>async: true</code> for <code>202 Accepted</code> + an id to poll, <code>DELETE</code>, or cancel. Optional HMAC-signed callback when it finishes.</p>
+        <p>Default: wait for exit, return the full run state. Set <code>detached: true</code> for <code>202 Accepted</code> + an id to poll, <code>DELETE</code>, or cancel. Optional HMAC-signed callback when it finishes.</p>
       </div>
       <div class="prim">
         <div class="num">04 / auto-evict</div>

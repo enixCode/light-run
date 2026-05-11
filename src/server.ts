@@ -30,7 +30,7 @@ export async function createServer(opts: CreateServerOptions = {}): Promise<Fast
       return reply.code(400).send({ error: 'bad_request', details: parsed.error.issues });
     }
     const { id, done } = await startRun(parsed.data);
-    if (parsed.data.async) {
+    if (parsed.data.detached) {
       return reply.code(202).send({ id, status: 'running', url: `/runs/${id}` });
     }
     return reply.send(await done);

@@ -148,15 +148,15 @@ maybe('light-run server', () => {
     assert.ok([400, 404].includes(bad.statusCode), `expected 400 or 404, got ${bad.statusCode}`);
   });
 
-  // --- async + poll + callback ---
+  // --- detached + poll + callback ---
 
-  it('async: returns 202, poll until done', async () => {
+  it('detached: returns 202, poll until done', async () => {
     const res = await server.inject({
       method: 'POST', url: '/run',
       headers: { authorization: `Bearer ${TOKEN}` },
       payload: {
-        image: 'alpine:3.19', entrypoint: 'echo async-ok',
-        files: { 'x': '' }, network: 'none', timeout: 30000, async: true,
+        image: 'alpine:3.19', entrypoint: 'echo detached-ok',
+        files: { 'x': '' }, network: 'none', timeout: 30000, detached: true,
       },
     });
     assert.equal(res.statusCode, 202);
@@ -179,7 +179,7 @@ maybe('light-run server', () => {
     assert.equal(final.exitCode, 0);
   });
 
-  it('async: callback with HMAC signature', async () => {
+  it('detached: callback with HMAC signature', async () => {
     const secret = 'callback-secret-long-enough';
     const received = await new Promise<{ body: string; sig: string | undefined }>((resolve, reject) => {
       const srv = http.createServer((req, res) => {
@@ -201,7 +201,7 @@ maybe('light-run server', () => {
           payload: {
             image: 'alpine:3.19', entrypoint: 'echo cb',
             files: { 'x': '' }, network: 'none', timeout: 30000,
-            async: true, callbackUrl: `http://127.0.0.1:${addr.port}/`, callbackSecret: secret,
+            detached: true, callbackUrl: `http://127.0.0.1:${addr.port}/`, callbackSecret: secret,
           },
         });
       });
@@ -220,7 +220,7 @@ maybe('light-run server', () => {
       headers: { authorization: `Bearer ${TOKEN}` },
       payload: {
         image: 'alpine:3.19', entrypoint: 'sleep 60',
-        files: { 'x': '' }, network: 'none', timeout: 120000, async: true,
+        files: { 'x': '' }, network: 'none', timeout: 120000, detached: true,
       },
     });
     const { id } = res.json() as { id: string };

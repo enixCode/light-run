@@ -64,11 +64,6 @@ export async function startRun(req: RunRequest): Promise<{ id: string; done: Pro
     fs.writeFileSync(dest, content);
   }
 
-  const parts: string[] = [];
-  if (req.setup?.length) parts.push(...req.setup);
-  if (req.entrypoint) parts.push(req.entrypoint);
-  const command = parts.length ? parts.join(' && ') : undefined;
-
   const extractSpecs = req.extract?.map((from) => ({
     from,
     to: artDir,
@@ -85,15 +80,16 @@ export async function startRun(req: RunRequest): Promise<{ id: string; done: Pro
   const runner = new DockerRunner();
   const execution = runner.run({
     image: req.image,
-    command,
+    command: req.entrypoint,
+    run: req.run,
     dir: tmpDir,
-    input: req.async ? undefined : req.input,
+    input: req.detached ? undefined : req.input,
     timeout: req.timeout,
     network: req.network,
     workdir: req.workdir,
     env: req.env,
     extract: extractSpecs,
-    detached: !!req.async,
+    detached: !!req.detached,
     onLog: (line: string) => {
       tracked.state.logs?.push(line);
     },
@@ -135,7 +131,7 @@ export async function startRun(req: RunRequest): Promise<{ id: string; done: Pro
     },
   );
 
-  if (req.async && req.callbackUrl) {
+  if (req.detached && req.callbackUrl) {
     const url = req.callbackUrl;
     const secret = req.callbackSecret;
     done.then((state) => postCallback(url, secret, state)).catch(() => {});

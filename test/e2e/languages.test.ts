@@ -153,18 +153,22 @@ maybe('light-run multi-language + functional', () => {
 
   // ---------- setup commands chained with && ----------
 
-  it('setup: pre-commands run before entrypoint', async () => {
+  it('run: build-time steps land in image, entrypoint sees them', async () => {
+    /* run[] writes to /opt (not /app) because /app is bind-mounted at runtime
+       and would mask anything baked into the image layer. The entrypoint reads
+       the build-time marker and proves it survived into the container. */
     const res = await postRun(server, {
       image: 'alpine:3.19',
-      setup: [
-        'echo "step1" >> /app/log.txt',
-        'echo "step2" >> /app/log.txt',
+      run: [
+        'mkdir -p /opt/cached',
+        'echo step1 > /opt/cached/log.txt',
+        'echo step2 >> /opt/cached/log.txt',
       ],
-      entrypoint: 'echo "main" >> /app/log.txt',
+      entrypoint: 'cp /opt/cached/log.txt /app/log.txt && echo main >> /app/log.txt',
       files: { 'x': '' },
       extract: ['/app/log.txt'],
       network: 'none',
-      timeout: 30000,
+      timeout: 60000,
     });
     assert.equal(res.statusCode, 200);
     const body = res.json() as { id: string; status: string };
