@@ -51,7 +51,7 @@
   },
   "dependencies": {
     "fastify": "^5.8.5",
-    "light-runner": "^0.12.0",
+    "light-runner": "^0.13.0",
     "zod": "^4.3.6"
   }
 }

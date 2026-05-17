@@ -1,6 +1,22 @@
 #!/usr/bin/env node
 import { parseArgs } from 'node:util';
+import type { FastifyBaseLogger } from 'fastify';
+import { DockerRunner } from 'light-runner';
 import { createServer } from '../server.js';
+
+const CACHE_SWEEP_INTERVAL_MS = 60 * 60 * 1000;
+
+async function sweepCache(log: FastifyBaseLogger): Promise<void> {
+  try {
+    const removed = await DockerRunner.cleanupOrphanCache();
+    if (removed > 0) log.info({ event: 'cache_cleanup', removed }, 'cache cleanup');
+  } catch (err) {
+    log.warn(
+      { event: 'cache_cleanup_failed', err: (err as Error).message },
+      'cache cleanup failed',
+    );
+  }
+}
 
 const USAGE = `light-run - HTTP wrapper around light-runner
 
@@ -60,12 +76,18 @@ if (!token) {
 
 const fastify = await createServer({ token, bodyLimit, logger: true });
 
+const cacheSweepTimer = setInterval(() => { void sweepCache(fastify.log); }, CACHE_SWEEP_INTERVAL_MS);
+cacheSweepTimer.unref();
+
 for (const sig of ['SIGINT', 'SIGTERM'] as const) {
   process.on(sig, async () => {
-    fastify.log.info(`received ${sig}, shutting down`);
+    fastify.log.info({ event: 'shutdown', signal: sig }, 'shutting down');
+    clearInterval(cacheSweepTimer);
+    await sweepCache(fastify.log);
     await fastify.close();
     process.exit(0);
   });
 }
 
 await fastify.listen({ port, host });
+void sweepCache(fastify.log);
