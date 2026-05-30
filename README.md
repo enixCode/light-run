@@ -270,8 +270,56 @@ After every finished run, `light-run` scans the artifact root. If the **total si
 | `LIGHT_RUN_TOKEN`                  | _unset_                          | Bearer token required on every route except `/health`.            |
 | `LIGHT_RUN_PORT`                   | `3000`                           | Listen port (CLI).                                                |
 | `LIGHT_RUN_HOST`                   | `127.0.0.1`                      | Listen host (CLI).                                                |
+| `OTEL_EXPORTER_OTLP_ENDPOINT`      | _unset_                          | If set, enables OpenTelemetry. Sends traces + metrics via OTLP/HTTP to this URL (e.g. `http://localhost:4318`). |
+| `OTEL_SERVICE_NAME`                | `light-run`                      | Service name attached to every emitted span/metric.               |
+| `LIGHT_RUN_OTEL_DEBUG`             | _unset_                          | Set to `1` to enable OpenTelemetry with a `ConsoleSpanExporter` instead of OTLP. Spans are printed to stdout (no metrics exported). Useful for local smoke tests without a Collector. |
+| `LIGHT_RUN_VERSION`                | package.json version             | Overrides the `service.version` attached to every span/metric. Defaults to the build's package.json version. |
 
 Unset `LIGHT_RUN_TOKEN` leaves the server open (the CLI prints a warning). Unset or invalid `LIGHT_RUN_MAX_ARTIFACTS_BYTES` falls back to the 20 GiB default. Explicit `DELETE /runs/:id` also removes the artifact directory immediately.
+
+---
+
+## Observability (OpenTelemetry)
+
+`light-run` ships with OpenTelemetry support out of the box. By default the SDK is constructed but never started, so there is **zero runtime cost** when you do not want tracing. Setting `OTEL_EXPORTER_OTLP_ENDPOINT` (or `LIGHT_RUN_OTEL_DEBUG=1`) turns it on.
+
+### What you get
+
+- **HTTP server spans** for every incoming request (`GET /health`, `POST /run`, `GET /runs/:id/artifacts/*`, ...) via `@fastify/otel` (the official Fastify-team plugin). Route name, method, status code, and exceptions are recorded.
+- **`docker.run` + sub-spans** emitted by `light-runner` whenever a container is spawned. The trace context (W3C `traceparent`) propagates automatically so the docker spans nest under the originating HTTP server span.
+- **Auto-instrumentations** for `node:http` outbound calls, DNS, undici/`fetch`, and a few others via `@opentelemetry/auto-instrumentations-node`. The noisy `instrumentation-fs` is disabled.
+- **OTLP metrics** exported on the same endpoint when `OTEL_EXPORTER_OTLP_ENDPOINT` is set.
+
+### Local smoke test (no Collector needed)
+
+```bash
+LIGHT_RUN_OTEL_DEBUG=1 light-run serve --port 3001 --token dev
+curl -H "Authorization: Bearer dev" http://127.0.0.1:3001/runs
+# stdout prints a span tree: dns.lookup, GET /runs, handler - fastify -> @fastify/otel, ...
+```
+
+### Production setup with an OTel Collector
+
+```bash
+export OTEL_EXPORTER_OTLP_ENDPOINT=http://collector.internal:4318
+export OTEL_SERVICE_NAME=light-run-prod
+light-run serve --port 3001 --token "$LIGHT_RUN_TOKEN"
+```
+
+The Collector receives traces + metrics over HTTP/protobuf on port 4318 and forwards to your backend of choice (Tempo, Jaeger, Honeycomb, Grafana Cloud, SigNoz, Datadog, etc.).
+
+### ESM caveat
+
+For full canonical setup including monkey-patching of `node:http`, launch with the ESM loader:
+
+```bash
+node \
+  --experimental-loader=@opentelemetry/instrumentation/hook.mjs \
+  --import ./dist/src/instrumentation.js \
+  ./dist/src/bin/light-run.js serve
+```
+
+Without the loader, `@fastify/otel` still works (it is a Fastify plugin, no monkey-patching needed) so server-side spans are emitted correctly. Outbound HTTP from `light-run` (e.g. the detached callback) will not be auto-traced.
 
 ---
 
