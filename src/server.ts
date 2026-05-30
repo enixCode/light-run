@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
+import { FastifyOtelInstrumentation } from '@fastify/otel';
 import { RunRequestSchema } from './schemas.js';
 import { artifactDir, cancelRun, deleteRun, getRun, listRuns, startRun } from './runner.js';
 
@@ -16,6 +17,16 @@ export async function createServer(opts: CreateServerOptions = {}): Promise<Fast
     logger: opts.logger ?? false,
     bodyLimit: opts.bodyLimit ?? 10 * 1024 * 1024,
   });
+
+  // OpenTelemetry tracing for incoming HTTP requests. Registered as a
+  // Fastify plugin (the contrib instrumentation-fastify package was retired
+  // in March 2026; @fastify/otel is the official replacement maintained by
+  // the Fastify team). No-op at runtime when no SDK has registered a
+  // TracerProvider, so this is safe even with OTEL_EXPORTER_OTLP_ENDPOINT
+  // unset. Service identity is carried by the SDK's Resource (OTEL_SERVICE_NAME),
+  // not by this plugin.
+  const otel = new FastifyOtelInstrumentation({ recordExceptions: true });
+  await fastify.register(otel.plugin());
 
   const auth = makeAuth(opts.token);
 

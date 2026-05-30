@@ -1,6 +1,6 @@
 {
   "name": "@enixcode/light-run",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Run a Docker container from an HTTP request. Thin wrapper around light-runner.",
   "type": "module",
   "main": "./dist/src/index.js",
@@ -50,6 +50,16 @@
     "typescript": "^6.0.3"
   },
   "dependencies": {
+    "@fastify/otel": "^0.18.1",
+    "@opentelemetry/api": "^1.9.0",
+    "@opentelemetry/auto-instrumentations-node": "^0.75.0",
+    "@opentelemetry/exporter-metrics-otlp-http": "^0.217.0",
+    "@opentelemetry/exporter-trace-otlp-http": "^0.217.0",
+    "@opentelemetry/resources": "^2.7.0",
+    "@opentelemetry/sdk-metrics": "^2.7.0",
+    "@opentelemetry/sdk-node": "^0.217.0",
+    "@opentelemetry/sdk-trace-base": "^2.7.0",
+    "@opentelemetry/semantic-conventions": "^1.30.0",
     "fastify": "^5.8.5",
     "light-runner": "^0.13.0",
     "zod": "^4.3.6"

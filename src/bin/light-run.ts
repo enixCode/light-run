@@ -1,4 +1,17 @@
 #!/usr/bin/env node
+// IMPORTANT: ./instrumentation must be the very first import. It bootstraps
+// the OpenTelemetry SDK before Fastify and any HTTP module is loaded, so
+// auto-instrumentations can hook the right runtime objects. Moving any
+// import above this line silently breaks tracing.
+//
+// For the canonical ESM monkey-patch path (http, undici), users should
+// additionally launch the bin with:
+//   node --experimental-loader=@opentelemetry/instrumentation/hook.mjs \
+//        --import ./dist/src/instrumentation.js dist/src/bin/light-run.js serve
+// Without the loader, @fastify/otel still works (it is a Fastify plugin,
+// no monkey-patching needed) so server-side spans are emitted correctly.
+import '../instrumentation.js';
+
 import { parseArgs } from 'node:util';
 import type { FastifyBaseLogger } from 'fastify';
 import { DockerRunner } from 'light-runner';
