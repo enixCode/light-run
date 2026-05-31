@@ -71,7 +71,8 @@ maybe('light-run server', () => {
     const body = res.json() as { status: string; exitCode: number; id: string };
     assert.equal(body.status, 'succeeded');
     assert.equal(body.exitCode, 0);
-    assert.match(body.id, /^[0-9a-f-]{36}$/);
+    // Run id is the light-runner container name, not a UUID.
+    assert.match(body.id, /^light-runner-[0-9a-f-]+$/);
   });
 
   it('sync: non-zero exit = failed', async () => {

@@ -44,7 +44,9 @@ maybe('light-run state persistence (light-runner as source of truth)', () => {
 
   it('run id is the light-runner container name, not a UUID', async () => {
     const { id } = await runSync('id-shape');
-    assert.match(id, /^light-runner-[0-9a-f]{12}$/);
+    // light-runner names containers light-runner-<uuid fragment>; the exact
+    // suffix shape is its detail, we only assert the stable prefix + charset.
+    assert.match(id, /^light-runner-[0-9a-f-]+$/);
   });
 
   it('GET /runs/:id is served from the light-runner state dir', async () => {
