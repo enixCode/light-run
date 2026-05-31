@@ -348,7 +348,7 @@ Without the loader, `@fastify/otel` still works (it is a Fastify plugin, no monk
 ## Testing
 
 ```bash
-npm test              # clean + build + node --test (60 e2e tests, skipped if Docker absent)
+npm test              # clean + build + node --test (59 e2e tests, skipped if Docker daemon absent)
 npm run test:docker   # same inside a container with the host Docker socket mounted
 ```
 
