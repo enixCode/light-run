@@ -2,9 +2,9 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { DockerRunner } from 'light-runner';
-import type { Execution } from 'light-runner';
-import type { ArtifactEntry, RunRequest, RunState } from './schemas.js';
+import { DockerRunner, deleteState, listStates, readState } from 'light-runner';
+import type { Execution, RunState as RunnerState } from 'light-runner';
+import type { ArtifactEntry, RunRequest, RunState, RunStatus } from './schemas.js';
 
 const DEFAULT_MAX_ARTIFACTS_BYTES = 20 * 1024 * 1024 * 1024; // 20 GiB
 
@@ -22,43 +22,74 @@ function maxArtifactsBytes(): number {
   return Number.isFinite(n) && n > 0 ? n : DEFAULT_MAX_ARTIFACTS_BYTES;
 }
 
-export interface ActiveRun {
-  state: RunState;
-  cancel: (() => void) | null;
+/* In-memory cache of runs launched by THIS process. It is no longer the source
+   of truth (light-runner's state dir is) - it only holds the live Execution so
+   lifecycle controls can act, plus the onLog buffer (light-runner does not
+   replay logs on a re-attached run). */
+interface LiveRun {
   execution: Execution | null;
-  artifactDir: string;
+  logs: string[];
 }
 
-const runs = new Map<string, ActiveRun>();
+const live = new Map<string, LiveRun>();
 
-export function getRun(id: string): ActiveRun | undefined {
-  return runs.get(id);
+/* Map light-runner's internal status to the HTTP-serialized one. */
+function toHttpStatus(s: RunnerState): RunStatus {
+  if (s.cancelled || s.status === 'cancelled') return 'cancelled';
+  if (s.status === 'running') return 'running';
+  if (s.status === 'failed') return 'failed';
+  // 'exited'
+  return s.exitCode === 0 ? 'succeeded' : 'failed';
+}
+
+function toHttpState(s: RunnerState): RunState {
+  const dir = path.join(artifactRoot(), s.id);
+  const artifacts = scanArtifacts(dir);
+  const logs = live.get(s.id)?.logs;
+  return {
+    id: s.id,
+    status: toHttpStatus(s),
+    startedAt: s.startedAt,
+    ...(s.finishedAt ? { finishedAt: s.finishedAt } : {}),
+    ...(s.exitCode !== undefined ? { exitCode: s.exitCode } : {}),
+    ...(s.durationMs !== undefined ? { durationMs: s.durationMs } : {}),
+    ...(artifacts.length ? { artifacts } : {}),
+    ...(logs && logs.length ? { logs } : {}),
+  };
+}
+
+export function getRunState(id: string): RunState | null {
+  const s = readState(id);
+  return s ? toHttpState(s) : null;
 }
 
 export function listRuns(): RunState[] {
-  return Array.from(runs.values()).map((r) => r.state);
+  return listStates().map(toHttpState);
 }
 
 export function deleteRun(id: string): boolean {
-  const r = runs.get(id);
-  if (!r) return false;
-  if (r.state.status === 'running') return false;
-  fs.rmSync(r.artifactDir, { recursive: true, force: true });
-  runs.delete(id);
+  const s = readState(id);
+  if (!s && !live.has(id)) return false;
+  if (s?.status === 'running') return false;
+  fs.rmSync(path.join(artifactRoot(), id), { recursive: true, force: true });
+  deleteState(id);
+  live.delete(id);
   return true;
 }
 
 export function artifactDir(id: string): string | null {
-  const r = runs.get(id);
-  if (!r) return null;
-  return r.artifactDir;
+  const dir = path.join(artifactRoot(), id);
+  if (live.has(id) || readState(id) || fs.existsSync(dir)) return dir;
+  return null;
 }
 
 export async function startRun(req: RunRequest): Promise<{ id: string; done: Promise<RunState> }> {
-  const id = crypto.randomUUID();
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'light-run-'));
-  const artDir = path.join(artifactRoot(), id);
-  fs.mkdirSync(artDir, { recursive: true });
+  // Extract into a temp dir on the SAME filesystem as the artifact root so the
+  // post-run move is an atomic rename (no EXDEV). The final id (container name)
+  // is only known after run() returns, so we cannot extract straight to it.
+  fs.mkdirSync(artifactRoot(), { recursive: true });
+  const extractTmp = fs.mkdtempSync(path.join(artifactRoot(), '.pending-'));
 
   for (const [relPath, content] of Object.entries(req.files)) {
     const dest = path.join(tmpDir, relPath);
@@ -66,19 +97,10 @@ export async function startRun(req: RunRequest): Promise<{ id: string; done: Pro
     fs.writeFileSync(dest, content);
   }
 
-  const extractSpecs = req.extract?.map((from) => ({
-    from,
-    to: artDir,
-  }));
+  const extractSpecs = req.extract?.map((from) => ({ from, to: extractTmp }));
 
   const startedAt = new Date().toISOString();
-  const tracked: ActiveRun = {
-    state: { id, status: 'running', startedAt, logs: [] },
-    cancel: () => {},
-    execution: null,
-    artifactDir: artDir,
-  };
-  runs.set(id, tracked);
+  const logs: string[] = [];
 
   const runner = new DockerRunner();
   const execution = runner.run({
@@ -88,20 +110,24 @@ export async function startRun(req: RunRequest): Promise<{ id: string; done: Pro
     dir: tmpDir,
     input: req.detached ? undefined : req.input,
     timeout: req.timeout,
-    network: req.network,
+    networks: req.networks,
     workdir: req.workdir,
     env: req.env,
     extract: extractSpecs,
     detached: !!req.detached,
     onLog: (line: string) => {
-      tracked.state.logs?.push(line);
+      logs.push(line);
     },
   });
-  tracked.cancel = () => execution.cancel();
-  tracked.execution = execution;
+
+  const id = execution.id;
+  const artDir = path.join(artifactRoot(), id);
+  const tracked: LiveRun = { execution, logs };
+  live.set(id, tracked);
 
   const done = execution.result.then(
     (result) => {
+      finalizeArtifacts(extractTmp, artDir);
       const artifacts = scanArtifacts(artDir);
       const final: RunState = {
         id,
@@ -110,27 +136,24 @@ export async function startRun(req: RunRequest): Promise<{ id: string; done: Pro
         finishedAt: new Date().toISOString(),
         exitCode: result.exitCode,
         durationMs: result.duration,
-        artifacts: artifacts.length ? artifacts : undefined,
-        logs: tracked.state.logs,
+        ...(artifacts.length ? { artifacts } : {}),
+        logs,
       };
-      tracked.state = final;
-      tracked.cancel = null;
       tracked.execution = null;
       fs.rmSync(tmpDir, { recursive: true, force: true });
       evictOldArtifacts(id);
       return final;
     },
     (err) => {
+      finalizeArtifacts(extractTmp, artDir);
       const final: RunState = {
         id,
         status: 'failed',
         startedAt,
         finishedAt: new Date().toISOString(),
         error: err instanceof Error ? err.message : String(err),
-        logs: tracked.state.logs,
+        logs,
       };
-      tracked.state = final;
-      tracked.cancel = null;
       tracked.execution = null;
       fs.rmSync(tmpDir, { recursive: true, force: true });
       return final;
@@ -146,38 +169,46 @@ export async function startRun(req: RunRequest): Promise<{ id: string; done: Pro
   return { id, done };
 }
 
-export function cancelRun(id: string): boolean {
-  const r = runs.get(id);
-  if (!r?.cancel) return false;
-  r.cancel();
+/* Resolve a live Execution for lifecycle controls. Prefer the in-process one
+   (carries the onLog stream); otherwise re-attach to a still-running run from a
+   previous process via its persisted state. Returns null when the run is gone
+   or already finished. */
+function liveExecution(id: string): Execution | null {
+  const r = live.get(id);
+  if (r?.execution) return r.execution;
+  const s = readState(id);
+  if (!s || s.status !== 'running') return null;
+  return DockerRunner.attach(id);
+}
+
+export async function cancelRun(id: string): Promise<boolean> {
+  const exec = liveExecution(id);
+  if (!exec) return false;
+  exec.cancel();
   return true;
 }
 
-/* Lifecycle controls on a live execution. They only apply while the run is
-   still tracked as running - light-runner targets the run's own container,
-   never a global operation. Return false (-> 404) when the run is unknown or
-   already finished. */
 export async function stopRun(
   id: string,
   opts?: { signal?: string; grace?: number },
 ): Promise<boolean> {
-  const r = runs.get(id);
-  if (!r?.execution || r.state.status !== 'running') return false;
-  await r.execution.stop(opts);
+  const exec = liveExecution(id);
+  if (!exec) return false;
+  await exec.stop(opts);
   return true;
 }
 
 export async function pauseRun(id: string): Promise<boolean> {
-  const r = runs.get(id);
-  if (!r?.execution || r.state.status !== 'running') return false;
-  await r.execution.pause();
+  const exec = liveExecution(id);
+  if (!exec) return false;
+  await exec.pause();
   return true;
 }
 
 export async function resumeRun(id: string): Promise<boolean> {
-  const r = runs.get(id);
-  if (!r?.execution || r.state.status !== 'running') return false;
-  await r.execution.resume();
+  const exec = liveExecution(id);
+  if (!exec) return false;
+  await exec.resume();
   return true;
 }
 
@@ -186,10 +217,36 @@ export function dockerAvailable(): Promise<boolean> {
   return DockerRunner.isAvailable();
 }
 
+/* Boot + periodic state maintenance. cleanupOrphanStates reconciles runs left
+   'running' by a crashed process (their container is gone) to 'failed';
+   cleanupOldStates evicts terminal state files past the size budget. */
+export async function reconcileStates(): Promise<{ reconciled: number; gc: number }> {
+  const reconciled = await DockerRunner.cleanupOrphanStates();
+  const gc = DockerRunner.cleanupOldStates();
+  return { reconciled, gc };
+}
+
+/* Move the extracted files into the run's final artifact dir. Same-filesystem
+   rename is atomic; cpSync is the cross-device fallback. */
+function finalizeArtifacts(extractTmp: string, artDir: string): void {
+  try {
+    fs.rmSync(artDir, { recursive: true, force: true });
+    fs.renameSync(extractTmp, artDir);
+  } catch {
+    try {
+      fs.cpSync(extractTmp, artDir, { recursive: true });
+      fs.rmSync(extractTmp, { recursive: true, force: true });
+    } catch {
+      /* best-effort: leave whatever landed */
+    }
+  }
+}
+
 /* When total bytes under artifactRoot() exceed LIGHT_RUN_MAX_ARTIFACTS_BYTES,
-   remove oldest-created run directories until we fit under the cap. The
-   currently-running runs and the just-finished run (keepId) are never
-   evicted - evicting them would nuke artifacts a client is about to fetch. */
+   remove oldest-created run directories until we fit under the cap. Running runs
+   (per the state dir) and the just-finished run (keepId) are never evicted. An
+   evicted run's state file is dropped too, so it stops showing up in GET /runs.
+   `.pending-*` extraction temps are ignored. */
 function evictOldArtifacts(keepId: string): void {
   const cap = maxArtifactsBytes();
   const root = artifactRoot();
@@ -202,9 +259,7 @@ function evictOldArtifacts(keepId: string): void {
   }
 
   const runningIds = new Set(
-    Array.from(runs.values())
-      .filter((r) => r.state.status === 'running')
-      .map((r) => r.state.id),
+    listStates().filter((s) => s.status === 'running').map((s) => s.id),
   );
 
   type Dir = { id: string; path: string; bytes: number; createdMs: number };
@@ -212,7 +267,7 @@ function evictOldArtifacts(keepId: string): void {
   let total = 0;
 
   for (const e of entries) {
-    if (!e.isDirectory()) continue;
+    if (!e.isDirectory() || e.name.startsWith('.')) continue;
     const full = path.join(root, e.name);
     const bytes = dirBytes(full);
     total += bytes;
@@ -233,7 +288,8 @@ function evictOldArtifacts(keepId: string): void {
   for (const d of evictable) {
     if (total <= cap) break;
     fs.rmSync(d.path, { recursive: true, force: true });
-    runs.delete(d.id);
+    deleteState(d.id);
+    live.delete(d.id);
     total -= d.bytes;
   }
 }

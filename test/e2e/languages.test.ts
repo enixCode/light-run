@@ -72,7 +72,7 @@ maybe('light-run multi-language + functional', () => {
       },
       input: { nums: [1, 2, 3, 4, 5, 6, 7] },
       extract: ['/app/out.json'],
-      network: 'none',
+      networks: ['none'],
       timeout: 60000,
     });
     assert.equal(res.statusCode, 200);
@@ -94,7 +94,7 @@ maybe('light-run multi-language + functional', () => {
         'helper.py': 'def greet(name):\n    return f"hello, {name}!"',
       },
       extract: ['/app/g.txt'],
-      network: 'none',
+      networks: ['none'],
       timeout: 60000,
     });
     assert.equal(res.statusCode, 200);
@@ -119,7 +119,7 @@ maybe('light-run multi-language + functional', () => {
         ].join('\n'),
       },
       extract: ['/app/hash.txt'],
-      network: 'none',
+      networks: ['none'],
       timeout: 60000,
     });
     assert.equal(res.statusCode, 200);
@@ -141,7 +141,7 @@ maybe('light-run multi-language + functional', () => {
       },
       env: { FOO: 'one', BAR: 'two-value' },
       extract: ['/app/env.txt'],
-      network: 'none',
+      networks: ['none'],
       timeout: 30000,
     });
     assert.equal(res.statusCode, 200);
@@ -167,7 +167,7 @@ maybe('light-run multi-language + functional', () => {
       entrypoint: 'cp /opt/cached/log.txt /app/log.txt && echo main >> /app/log.txt',
       files: { 'x': '' },
       extract: ['/app/log.txt'],
-      network: 'none',
+      networks: ['none'],
       timeout: 60000,
     });
     assert.equal(res.statusCode, 200);
@@ -192,7 +192,7 @@ maybe('light-run multi-language + functional', () => {
         ].join('\n'),
       },
       extract: ['/app/out'],
-      network: 'none',
+      networks: ['none'],
       timeout: 30000,
     });
     assert.equal(res.statusCode, 200);
@@ -219,7 +219,7 @@ maybe('light-run multi-language + functional', () => {
       entrypoint: 'dd if=/dev/urandom of=/app/big.bin bs=1M count=3 2>/dev/null',
       files: { 'x': '' },
       extract: ['/app/big.bin'],
-      network: 'none',
+      networks: ['none'],
       timeout: 60000,
     });
     assert.equal(res.statusCode, 200);
@@ -240,7 +240,7 @@ maybe('light-run multi-language + functional', () => {
       entrypoint: 'cp in.txt /app/out.txt',
       files: { 'in.txt': contents },
       extract: ['/app/out.txt'],
-      network: 'none',
+      networks: ['none'],
       timeout: 30000,
     });
     assert.equal(res.statusCode, 200);

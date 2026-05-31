@@ -192,7 +192,7 @@ maybe('light-run adversarial', () => {
       method: 'POST', url: '/run', headers: AUTH,
       payload: {
         image: 'alpine:3.19', entrypoint: 'echo ok',
-        files: { x: '' }, network: 'none', timeout: 30000,
+        files: { x: '' }, networks: ['none'], timeout: 30000,
       },
     });
     const { id } = r.json() as { id: string };
@@ -220,7 +220,7 @@ maybe('light-run adversarial', () => {
         image: 'alpine:3.19',
         entrypoint: 'sleep 60',
         files: { x: '' },
-        network: 'none',
+        networks: ['none'],
         timeout: 2000, // 2s cap on a 60s sleep - must be killed
       },
     });
@@ -247,7 +247,7 @@ maybe('light-run adversarial', () => {
           '&& echo REACHED > /app/out.txt ' +
           '|| echo BLOCKED > /app/out.txt',
         files: { x: '' },
-        network: 'none',
+        networks: ['none'],
         timeout: 15000,
         extract: ['/app/out.txt'],
       },
@@ -277,7 +277,7 @@ maybe('light-run adversarial', () => {
           'main.sh': 'printf "%s" "$MAL" > /app/val.txt',
         },
         env: { MAL: malicious },
-        network: 'none',
+        networks: ['none'],
         timeout: 30000,
         extract: ['/app/val.txt'],
       },

@@ -64,7 +64,7 @@ maybe('light-run server', () => {
         image: 'alpine:3.19',
         entrypoint: 'sh main.sh',
         files: { 'main.sh': 'echo ok' },
-        network: 'none', timeout: 30000,
+        networks: ['none'], timeout: 30000,
       },
     });
     assert.equal(res.statusCode, 200);
@@ -80,7 +80,7 @@ maybe('light-run server', () => {
       headers: { authorization: `Bearer ${TOKEN}` },
       payload: {
         image: 'alpine:3.19', entrypoint: 'sh -c "exit 7"',
-        files: { 'noop': '' }, network: 'none', timeout: 30000,
+        files: { 'noop': '' }, networks: ['none'], timeout: 30000,
       },
     });
     const body = res.json() as { status: string; exitCode: number };
@@ -98,7 +98,7 @@ maybe('light-run server', () => {
         image: 'alpine:3.19',
         entrypoint: 'sh main.sh',
         files: { 'main.sh': 'echo "artifact-content" > /app/report.txt' },
-        network: 'none', timeout: 30000,
+        networks: ['none'], timeout: 30000,
         extract: ['/app/report.txt'],
       },
     });
@@ -136,7 +136,7 @@ maybe('light-run server', () => {
       headers: { authorization: `Bearer ${TOKEN}` },
       payload: {
         image: 'alpine:3.19', entrypoint: 'echo ok',
-        files: { 'x': '' }, network: 'none', timeout: 30000,
+        files: { 'x': '' }, networks: ['none'], timeout: 30000,
       },
     });
     const { id } = res.json() as { id: string };
@@ -156,7 +156,7 @@ maybe('light-run server', () => {
       headers: { authorization: `Bearer ${TOKEN}` },
       payload: {
         image: 'alpine:3.19', entrypoint: 'echo detached-ok',
-        files: { 'x': '' }, network: 'none', timeout: 30000, detached: true,
+        files: { 'x': '' }, networks: ['none'], timeout: 30000, detached: true,
       },
     });
     assert.equal(res.statusCode, 202);
@@ -200,7 +200,7 @@ maybe('light-run server', () => {
           headers: { authorization: `Bearer ${TOKEN}` },
           payload: {
             image: 'alpine:3.19', entrypoint: 'echo cb',
-            files: { 'x': '' }, network: 'none', timeout: 30000,
+            files: { 'x': '' }, networks: ['none'], timeout: 30000,
             detached: true, callbackUrl: `http://127.0.0.1:${addr.port}/`, callbackSecret: secret,
           },
         });
@@ -220,7 +220,7 @@ maybe('light-run server', () => {
       headers: { authorization: `Bearer ${TOKEN}` },
       payload: {
         image: 'alpine:3.19', entrypoint: 'sleep 60',
-        files: { 'x': '' }, network: 'none', timeout: 120000, detached: true,
+        files: { 'x': '' }, networks: ['none'], timeout: 120000, detached: true,
       },
     });
     const { id } = res.json() as { id: string };
@@ -257,7 +257,7 @@ maybe('light-run server', () => {
       headers: { authorization: `Bearer ${TOKEN}` },
       payload: {
         image: 'alpine:3.19', entrypoint: 'echo del',
-        files: { 'x': '' }, network: 'none', timeout: 30000,
+        files: { 'x': '' }, networks: ['none'], timeout: 30000,
       },
     });
     const { id } = res.json() as { id: string };
@@ -306,7 +306,7 @@ maybe('light-run server', () => {
           payload: {
             image: 'alpine:3.19',
             entrypoint: `sh -c 'head -c 180 /dev/urandom | base64 > /app/${tag}.txt'`,
-            files: { 'x': '' }, network: 'none', timeout: 30000,
+            files: { 'x': '' }, networks: ['none'], timeout: 30000,
             extract: [`/app/${tag}.txt`],
           },
         });
