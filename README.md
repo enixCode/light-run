@@ -135,11 +135,14 @@ All endpoints except `/health` require `Authorization: Bearer <token>` when the 
 
 | Method | Path                            | Description                                                |
 | ------ | ------------------------------- | ---------------------------------------------------------- |
-| GET    | `/health`                       | Liveness (no auth)                                         |
+| GET    | `/health`                       | Liveness + Docker daemon reachability (no auth). `503` if Docker is down. |
 | POST   | `/run`                          | Start a run. Sync by default, `detached: true` returns 202.|
 | GET    | `/runs`                         | List tracked runs                                          |
 | GET    | `/runs/:id`                     | Full state of one run                                      |
-| POST   | `/runs/:id/cancel`              | Cancel a running execution                                 |
+| POST   | `/runs/:id/cancel`              | Cancel a running execution (SIGKILL)                      |
+| POST   | `/runs/:id/stop`                | Graceful stop: SIGTERM then SIGKILL. Body `{ signal?, grace? }` |
+| POST   | `/runs/:id/pause`               | Pause (freeze) a running container                        |
+| POST   | `/runs/:id/resume`              | Resume a paused container                                 |
 | DELETE | `/runs/:id`                     | Remove a terminal run + its artifact folder                |
 | GET    | `/runs/:id/artifacts`           | List files extracted from the run                          |
 | GET    | `/runs/:id/artifacts/*`         | Download a file (or list a subdirectory)                   |
@@ -338,15 +341,16 @@ Without the loader, `@fastify/otel` still works (it is a Fastify plugin, no monk
 ## Testing
 
 ```bash
-npm test              # clean + build + node --test (38 e2e tests, skipped if Docker absent)
+npm test              # clean + build + node --test (47 e2e tests, skipped if Docker absent)
 npm run test:docker   # same inside a container with the host Docker socket mounted
 ```
 
-Tests are split across three files, all using Fastify's `inject()` with **real** `light-runner` containers against the host Docker daemon:
+Tests are split across four files, all using Fastify's `inject()` with **real** `light-runner` containers against the host Docker daemon:
 
 - `test/e2e/server.test.ts` (13 tests) - core surface: auth, sync + detached runs, artifacts, cancel, delete, list, storage auto-eviction.
 - `test/e2e/languages.test.ts` (8 tests) - Python / Node / shell real workloads: stdin + JSON compute, multi-file project with local import, `crypto.createHash` determinism, env vars, build-time `run` step, nested directory extraction, multi-MB binary streaming, unicode round-trip.
 - `test/e2e/adversarial.test.ts` (17 tests) - failure paths: malformed/wrong/empty Bearer, Zod rejects (absolute path, `..`, empty files, invalid env name, oversize image/entrypoint), `413 Payload Too Large` on body-limit breach, `..` artifact traversal, timeout kills a `sleep 60` in <10 s, `network: 'none'` actually blocks outbound, shell metacharacters in env values passed literally (no command injection).
+- `test/e2e/lifecycle.test.ts` (9 tests) - run lifecycle: real `GET /health` Docker ping, pause then resume then stop on a live detached run, `404` on unknown or finished runs, `400` on invalid stop body, `401` without Bearer.
 
 ---
 

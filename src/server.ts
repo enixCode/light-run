@@ -3,8 +3,19 @@ import fs from 'node:fs';
 import path from 'node:path';
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
 import { FastifyOtelInstrumentation } from '@fastify/otel';
-import { RunRequestSchema } from './schemas.js';
-import { artifactDir, cancelRun, deleteRun, getRun, listRuns, startRun } from './runner.js';
+import { RunRequestSchema, StopOptionsSchema } from './schemas.js';
+import {
+  artifactDir,
+  cancelRun,
+  deleteRun,
+  dockerAvailable,
+  getRun,
+  listRuns,
+  pauseRun,
+  resumeRun,
+  startRun,
+  stopRun,
+} from './runner.js';
 
 export interface CreateServerOptions {
   token?: string;
@@ -30,7 +41,11 @@ export async function createServer(opts: CreateServerOptions = {}): Promise<Fast
 
   const auth = makeAuth(opts.token);
 
-  fastify.get('/health', async () => ({ status: 'ok' }));
+  fastify.get('/health', async (_req, reply) => {
+    const docker = await dockerAvailable();
+    if (!docker) return reply.code(503).send({ status: 'degraded', docker: false });
+    return { status: 'ok', docker: true };
+  });
 
   // --- run ---
 
@@ -64,6 +79,34 @@ export async function createServer(opts: CreateServerOptions = {}): Promise<Fast
   fastify.post<{ Params: { id: string } }>('/runs/:id/cancel', async (req, reply) => {
     if (!auth(req, reply)) return;
     if (!cancelRun(req.params.id)) return reply.code(404).send({ error: 'not_found_or_done' });
+    return reply.code(204).send();
+  });
+
+  fastify.post<{ Params: { id: string } }>('/runs/:id/stop', async (req, reply) => {
+    if (!auth(req, reply)) return;
+    const parsed = StopOptionsSchema.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      return reply.code(400).send({ error: 'bad_request', details: parsed.error.issues });
+    }
+    if (!(await stopRun(req.params.id, parsed.data))) {
+      return reply.code(404).send({ error: 'not_found_or_done' });
+    }
+    return reply.code(204).send();
+  });
+
+  fastify.post<{ Params: { id: string } }>('/runs/:id/pause', async (req, reply) => {
+    if (!auth(req, reply)) return;
+    if (!(await pauseRun(req.params.id))) {
+      return reply.code(404).send({ error: 'not_found_or_done' });
+    }
+    return reply.code(204).send();
+  });
+
+  fastify.post<{ Params: { id: string } }>('/runs/:id/resume', async (req, reply) => {
+    if (!auth(req, reply)) return;
+    if (!(await resumeRun(req.params.id))) {
+      return reply.code(404).send({ error: 'not_found_or_done' });
+    }
     return reply.code(204).send();
   });
 
