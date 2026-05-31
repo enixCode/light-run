@@ -350,6 +350,7 @@ Tests are split across four files, all using Fastify's `inject()` with **real** 
 - `test/e2e/server.test.ts` (13 tests) - core surface: auth, sync + detached runs, artifacts, cancel, delete, list, storage auto-eviction.
 - `test/e2e/languages.test.ts` (8 tests) - Python / Node / shell real workloads: stdin + JSON compute, multi-file project with local import, `crypto.createHash` determinism, env vars, build-time `run` step, nested directory extraction, multi-MB binary streaming, unicode round-trip.
 - `test/e2e/adversarial.test.ts` (17 tests) - failure paths: malformed/wrong/empty Bearer, Zod rejects (absolute path, `..`, empty files, invalid env name, oversize image/entrypoint), `413 Payload Too Large` on body-limit breach, `..` artifact traversal, timeout kills a `sleep 60` in <10 s, `network: 'none'` actually blocks outbound, shell metacharacters in env values passed literally (no command injection).
+- `test/e2e/lifecycle.test.ts` (9 tests) - run lifecycle: real `GET /health` Docker ping, pause then resume then stop on a live detached run, `404` on unknown or finished runs, `400` on invalid stop body, `401` without Bearer.
 
 ---
 
