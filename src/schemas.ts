@@ -53,6 +53,14 @@ type _RunRequestSharedAlignment = _Assert<
   Pick<RunRequest, _SharedFields> extends Pick<RunnerRunRequest, _SharedFields> ? true : never
 >;
 
+/* Body of POST /runs/:id/stop. Mirrors light-runner's StopOptions: graceful
+   SIGTERM (or `signal`) then SIGKILL after `grace` ms. */
+export const StopOptionsSchema = z.object({
+  signal: z.string().min(1).max(20).optional(),
+  grace: z.number().int().nonnegative().max(300000).optional(),
+});
+export type StopOptions = z.infer<typeof StopOptionsSchema>;
+
 export const ArtifactEntrySchema = z.object({
   path: z.string(),
   bytes: z.number().int().nonnegative(),

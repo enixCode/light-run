@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { DockerRunner } from 'light-runner';
+import type { Execution } from 'light-runner';
 import type { ArtifactEntry, RunRequest, RunState } from './schemas.js';
 
 const DEFAULT_MAX_ARTIFACTS_BYTES = 20 * 1024 * 1024 * 1024; // 20 GiB
@@ -24,6 +25,7 @@ function maxArtifactsBytes(): number {
 export interface ActiveRun {
   state: RunState;
   cancel: (() => void) | null;
+  execution: Execution | null;
   artifactDir: string;
 }
 
@@ -73,6 +75,7 @@ export async function startRun(req: RunRequest): Promise<{ id: string; done: Pro
   const tracked: ActiveRun = {
     state: { id, status: 'running', startedAt, logs: [] },
     cancel: () => {},
+    execution: null,
     artifactDir: artDir,
   };
   runs.set(id, tracked);
@@ -95,6 +98,7 @@ export async function startRun(req: RunRequest): Promise<{ id: string; done: Pro
     },
   });
   tracked.cancel = () => execution.cancel();
+  tracked.execution = execution;
 
   const done = execution.result.then(
     (result) => {
@@ -111,6 +115,7 @@ export async function startRun(req: RunRequest): Promise<{ id: string; done: Pro
       };
       tracked.state = final;
       tracked.cancel = null;
+      tracked.execution = null;
       fs.rmSync(tmpDir, { recursive: true, force: true });
       evictOldArtifacts(id);
       return final;
@@ -126,6 +131,7 @@ export async function startRun(req: RunRequest): Promise<{ id: string; done: Pro
       };
       tracked.state = final;
       tracked.cancel = null;
+      tracked.execution = null;
       fs.rmSync(tmpDir, { recursive: true, force: true });
       return final;
     },
@@ -145,6 +151,39 @@ export function cancelRun(id: string): boolean {
   if (!r?.cancel) return false;
   r.cancel();
   return true;
+}
+
+/* Lifecycle controls on a live execution. They only apply while the run is
+   still tracked as running - light-runner targets the run's own container,
+   never a global operation. Return false (-> 404) when the run is unknown or
+   already finished. */
+export async function stopRun(
+  id: string,
+  opts?: { signal?: string; grace?: number },
+): Promise<boolean> {
+  const r = runs.get(id);
+  if (!r?.execution || r.state.status !== 'running') return false;
+  await r.execution.stop(opts);
+  return true;
+}
+
+export async function pauseRun(id: string): Promise<boolean> {
+  const r = runs.get(id);
+  if (!r?.execution || r.state.status !== 'running') return false;
+  await r.execution.pause();
+  return true;
+}
+
+export async function resumeRun(id: string): Promise<boolean> {
+  const r = runs.get(id);
+  if (!r?.execution || r.state.status !== 'running') return false;
+  await r.execution.resume();
+  return true;
+}
+
+/* Docker daemon reachability, surfaced by GET /health. */
+export function dockerAvailable(): Promise<boolean> {
+  return DockerRunner.isAvailable();
 }
 
 /* When total bytes under artifactRoot() exceed LIGHT_RUN_MAX_ARTIFACTS_BYTES,
