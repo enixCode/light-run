@@ -61,6 +61,33 @@ export const StopOptionsSchema = z.object({
 });
 export type StopOptions = z.infer<typeof StopOptionsSchema>;
 
+/* Body of POST /networks. Maps to light-runner's createNetwork(name, opts):
+   the name is the first arg, the rest are CreateNetworkOptions. The server.ts
+   call site is type-checked against light-runner at build time, so drift in
+   CreateNetworkOptions fails the build. */
+export const NetworkCreateSchema = z.object({
+  name: z.string().min(1).max(100),
+  driver: z.literal('bridge').optional(),
+  iccEnabled: z.boolean().optional(),
+  exclusive: z.boolean().optional(),
+  labels: z.record(z.string(), z.string()).optional(),
+  ipam: z
+    .object({
+      subnet: z.string().max(64).optional(),
+      gateway: z.string().max(64).optional(),
+      ipRange: z.string().max(64).optional(),
+    })
+    .optional(),
+});
+export type NetworkCreate = z.infer<typeof NetworkCreateSchema>;
+
+/* Body of POST /networks/cleanup -> cleanupOrphanNetworks. */
+export const NetworkCleanupSchema = z.object({
+  prefix: z.string().max(100).optional(),
+  maxAgeMs: z.number().int().nonnegative().optional(),
+});
+export type NetworkCleanup = z.infer<typeof NetworkCleanupSchema>;
+
 export const ArtifactEntrySchema = z.object({
   path: z.string(),
   bytes: z.number().int().nonnegative(),
