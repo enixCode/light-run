@@ -97,7 +97,7 @@ curl -X POST http://localhost:3000/run \
     "entrypoint": "sh main.sh",
     "files": { "main.sh": "echo hello > /app/out.txt" },
     "extract": ["/app/out.txt"],
-    "network": "none",
+    "networks": ["none"],
     "timeout": 30000
   }'
 ```
@@ -106,7 +106,7 @@ You get back the final run state once the container exits:
 
 ```json
 {
-  "id": "a1b2c3d4-...",
+  "id": "light-runner-3f9c2a1b4d5e",
   "status": "succeeded",
   "startedAt": "2026-04-20T10:00:00.000Z",
   "finishedAt": "2026-04-20T10:00:03.421Z",
@@ -165,7 +165,7 @@ All endpoints except `/health` require `Authorization: Bearer <token>` when the 
   run?: string[];                     // build-time RUN steps baked into a cached image
   input?: unknown;                    // JSON piped to stdin (sync runs only)
   timeout?: number;                   // ms, max 60 * 60 * 1000
-  network?: string;                   // "none", "bridge", or a named network
+  networks?: string[];                // first is primary (NetworkMode), rest connected after; ["none"], ["my-net"], ...
   workdir?: string;                   // working directory inside the container
   env?: Record<string, string>;       // env vars (name must match [A-Za-z_][A-Za-z0-9_]*)
   extract?: string[];                 // container paths to pull back after exit
@@ -224,7 +224,7 @@ Options:
 
 ## Shared types with light-runner
 
-`light-run` is a thin HTTP boundary over `light-runner` - the two packages share several field shapes (`image`, `timeout`, `network`, `env`, `workdir`, `input`, `extract` semantics). Rather than redefine everything, `light-run` re-exports the 1:1 types directly from `light-runner`:
+`light-run` is a thin HTTP boundary over `light-runner` - the two packages share several field shapes (`image`, `timeout`, `networks`, `env`, `workdir`, `input`, `extract` semantics). Rather than redefine everything, `light-run` re-exports the 1:1 types directly from `light-runner`:
 
 ```ts
 import type { Runtime, RunnerOptions, ExtractResult } from '@enixcode/light-run';
@@ -261,17 +261,20 @@ No request/result caching, no content-addressable file store, no memoization. `l
 
 ## Storage
 
-Artifacts are kept under `~/.light-run/artifacts/<run-id>/` on the host. Temporary working directories under `os.tmpdir()` are cleaned as soon as the container exits. Run state is kept in-memory only - restarting the server forgets tracked runs (artifacts on disk are left intact).
+Artifacts are kept under `~/.light-run/artifacts/<run-id>/` on the host, where `<run-id>` is the light-runner container name (e.g. `light-runner-3f9c2a1b4d5e`), not a UUID. Temporary working directories under `os.tmpdir()` are cleaned as soon as the container exits.
+
+Run state is **persisted by light-runner** in its state directory (`LIGHT_RUNNER_STATE_DIR`, default `~/.light-runner/state`, one JSON per run). `light-run` is a stateless projection over it: `GET /runs` and `GET /runs/:id` read `listStates` / `readState`, so a server restart no longer forgets runs. On boot (and hourly) light-run reconciles runs left `running` by a crashed process to `failed` (`cleanupOrphanStates`) and garbage-collects old terminal state files (`cleanupOldStates`). Lifecycle controls (`cancel` / `stop` / `pause` / `resume`) on a still-running detached run survive a restart by re-attaching to the container (`DockerRunner.attach`); live `onLog` lines are not replayed after a re-attach (use the run's artifacts).
 
 ### Auto-eviction
 
-After every finished run, `light-run` scans the artifact root. If the **total size exceeds the cap**, the oldest run directories (by creation time) are removed until the total is back under the cap. Running runs and the run that just finished are never evicted - the client may still be about to download them. When a directory is evicted, the matching in-memory run state is also dropped (subsequent `GET /runs/:id` returns `404`).
+After every finished run, `light-run` scans the artifact root. If the **total size exceeds the cap**, the oldest run directories (by creation time) are removed until the total is back under the cap. Running runs and the run that just finished are never evicted - the client may still be about to download them. When a directory is evicted, the matching run state file is also dropped (subsequent `GET /runs/:id` returns `404`).
 
 ### Environment variables
 
 | Variable                           | Default                          | Purpose                                                          |
 | ---------------------------------- | -------------------------------- | ---------------------------------------------------------------- |
 | `LIGHT_RUN_ARTIFACTS_DIR`          | `~/.light-run/artifacts`         | Override where artifact directories are stored.                   |
+| `LIGHT_RUNNER_STATE_DIR`           | `~/.light-runner/state`          | light-runner's run-state directory. light-run reads it as its source of truth for `GET /runs`; restart recovery and GC operate on it. |
 | `LIGHT_RUN_MAX_ARTIFACTS_BYTES`    | `21474836480` (20 GiB)           | Total bytes across all run artifact dirs before auto-eviction kicks in. |
 | `LIGHT_RUN_BODY_LIMIT`             | `10485760` (10 MiB)              | Max POST body size (CLI). Each request is parsed in memory. |
 | `LIGHT_RUN_TOKEN`                  | _unset_                          | Bearer token required on every route except `/health`.            |
@@ -345,17 +348,18 @@ Without the loader, `@fastify/otel` still works (it is a Fastify plugin, no monk
 ## Testing
 
 ```bash
-npm test              # clean + build + node --test (55 e2e tests, skipped if Docker absent)
+npm test              # clean + build + node --test (60 e2e tests, skipped if Docker absent)
 npm run test:docker   # same inside a container with the host Docker socket mounted
 ```
 
-Tests are split across five files, all using Fastify's `inject()` with **real** `light-runner` containers against the host Docker daemon:
+Tests are split across six files, all using Fastify's `inject()` with **real** `light-runner` containers against the host Docker daemon:
 
 - `test/e2e/server.test.ts` (13 tests) - core surface: auth, sync + detached runs, artifacts, cancel, delete, list, storage auto-eviction.
 - `test/e2e/languages.test.ts` (8 tests) - Python / Node / shell real workloads: stdin + JSON compute, multi-file project with local import, `crypto.createHash` determinism, env vars, build-time `run` step, nested directory extraction, multi-MB binary streaming, unicode round-trip.
 - `test/e2e/adversarial.test.ts` (17 tests) - failure paths: malformed/wrong/empty Bearer, Zod rejects (absolute path, `..`, empty files, invalid env name, oversize image/entrypoint), `413 Payload Too Large` on body-limit breach, `..` artifact traversal, timeout kills a `sleep 60` in <10 s, `network: 'none'` actually blocks outbound, shell metacharacters in env values passed literally (no command injection).
 - `test/e2e/lifecycle.test.ts` (9 tests) - run lifecycle: real `GET /health` Docker ping, pause then resume then stop on a live detached run, `404` on unknown or finished runs, `400` on invalid stop body, `401` without Bearer.
 - `test/e2e/networks.test.ts` (8 tests) - Docker network CRUD: create then exists then delete round-trip, idempotent create + delete, IPAM subnet, `400` on missing name, `401` without Bearer, `POST /networks/cleanup` removed count.
+- `test/e2e/persistence.test.ts` (5 tests) - light-runner as source of truth: run id is the container name, `GET /runs/:id` served from the state dir, a fresh server instance recovers runs from disk (restart proxy), `DELETE` removes the state file, `GET /runs` lists from disk.
 
 ---
 

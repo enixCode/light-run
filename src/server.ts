@@ -14,7 +14,7 @@ import {
   cancelRun,
   deleteRun,
   dockerAvailable,
-  getRun,
+  getRunState,
   listRuns,
   pauseRun,
   resumeRun,
@@ -83,14 +83,14 @@ export async function createServer(opts: CreateServerOptions = {}): Promise<Fast
 
   fastify.get<{ Params: { id: string } }>('/runs/:id', async (req, reply) => {
     if (!auth(req, reply)) return;
-    const r = getRun(req.params.id);
-    if (!r) return reply.code(404).send({ error: 'not_found' });
-    return reply.send(r.state);
+    const state = getRunState(req.params.id);
+    if (!state) return reply.code(404).send({ error: 'not_found' });
+    return reply.send(state);
   });
 
   fastify.post<{ Params: { id: string } }>('/runs/:id/cancel', async (req, reply) => {
     if (!auth(req, reply)) return;
-    if (!cancelRun(req.params.id)) return reply.code(404).send({ error: 'not_found_or_done' });
+    if (!(await cancelRun(req.params.id))) return reply.code(404).send({ error: 'not_found_or_done' });
     return reply.code(204).send();
   });
 
@@ -132,9 +132,9 @@ export async function createServer(opts: CreateServerOptions = {}): Promise<Fast
 
   fastify.get<{ Params: { id: string } }>('/runs/:id/artifacts', async (req, reply) => {
     if (!auth(req, reply)) return;
-    const r = getRun(req.params.id);
-    if (!r) return reply.code(404).send({ error: 'not_found' });
-    return reply.send(r.state.artifacts ?? []);
+    const state = getRunState(req.params.id);
+    if (!state) return reply.code(404).send({ error: 'not_found' });
+    return reply.send(state.artifacts ?? []);
   });
 
   fastify.get<{ Params: { id: string; '*': string } }>('/runs/:id/artifacts/*', async (req, reply) => {

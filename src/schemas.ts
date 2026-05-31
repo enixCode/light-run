@@ -23,7 +23,11 @@ export const RunRequestSchema = z.object({
   ),
   input: z.unknown().optional(),
   timeout: z.number().int().positive().max(60 * 60 * 1000).optional(),
-  network: z.string().max(100).optional(),
+  /* Networks for the container, passed straight to light-runner. First entry is
+     the primary (Docker NetworkMode), the rest are connected after create.
+     Omitted = isolated bridge (secure default); ['none'] = no network; named
+     networks must already exist (create them via POST /networks). */
+  networks: z.array(z.string().min(1).max(100)).max(20).optional(),
   workdir: z.string().max(200).optional(),
   env: z
     .record(
@@ -46,7 +50,7 @@ export type RunRequest = z.infer<typeof RunRequestSchema>;
    tightens one of these types, this line fails the build and forces a sync.
    Zod schemas live at runtime so true inheritance is impossible - this catches
    the next-best thing (type-level mismatch) at zero runtime cost. */
-type _SharedFields = 'image' | 'entrypoint' | 'timeout' | 'network' | 'env' | 'workdir' | 'input' | 'run' | 'detached';
+type _SharedFields = 'image' | 'entrypoint' | 'timeout' | 'networks' | 'env' | 'workdir' | 'input' | 'run' | 'detached';
 type _Assert<T extends true> = T;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 type _RunRequestSharedAlignment = _Assert<
@@ -99,7 +103,9 @@ export const RunStatusSchema = z.enum(['running', 'succeeded', 'failed', 'cancel
 export type RunStatus = z.infer<typeof RunStatusSchema>;
 
 export const RunStateSchema = z.object({
-  id: z.string().uuid(),
+  // Run id is the light-runner container name (e.g. light-runner-3f9c2a1b4d5e),
+  // not a UUID: light-runner owns the id and persists it as the state key.
+  id: z.string().min(1),
   status: RunStatusSchema,
   startedAt: z.string(),
   finishedAt: z.string().optional(),

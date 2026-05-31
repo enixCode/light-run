@@ -36,7 +36,7 @@ maybe('light-run run lifecycle', () => {
       headers: AUTH,
       payload: {
         image: 'alpine:3.19', entrypoint: 'sleep 60',
-        files: { 'x': '' }, network: 'none', timeout: 120000, detached: true,
+        files: { 'x': '' }, networks: ['none'], timeout: 120000, detached: true,
       },
     });
     assert.equal(res.statusCode, 202);
@@ -130,7 +130,7 @@ maybe('light-run run lifecycle', () => {
       headers: AUTH,
       payload: {
         image: 'alpine:3.19', entrypoint: 'echo done',
-        files: { 'x': '' }, network: 'none', timeout: 30000,
+        files: { 'x': '' }, networks: ['none'], timeout: 30000,
       },
     });
     assert.equal(res.statusCode, 200);
