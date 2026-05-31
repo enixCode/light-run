@@ -146,6 +146,10 @@ All endpoints except `/health` require `Authorization: Bearer <token>` when the 
 | DELETE | `/runs/:id`                     | Remove a terminal run + its artifact folder                |
 | GET    | `/runs/:id/artifacts`           | List files extracted from the run                          |
 | GET    | `/runs/:id/artifacts/*`         | Download a file (or list a subdirectory)                   |
+| POST   | `/networks`                     | Create a Docker network. Body `{ name, driver?, iccEnabled?, exclusive?, labels?, ipam? }`. `201 { name, created }` |
+| GET    | `/networks/:name`               | Network existence. `200 { name, exists }`                  |
+| DELETE | `/networks/:name`               | Delete a network. `204`, or `409` if it still has active endpoints |
+| POST   | `/networks/cleanup`             | Remove orphan `light-runner-*` networks. Body `{ prefix?, maxAgeMs? }`. `200 { removed }` |
 
 ---
 
@@ -341,16 +345,17 @@ Without the loader, `@fastify/otel` still works (it is a Fastify plugin, no monk
 ## Testing
 
 ```bash
-npm test              # clean + build + node --test (47 e2e tests, skipped if Docker absent)
+npm test              # clean + build + node --test (55 e2e tests, skipped if Docker absent)
 npm run test:docker   # same inside a container with the host Docker socket mounted
 ```
 
-Tests are split across four files, all using Fastify's `inject()` with **real** `light-runner` containers against the host Docker daemon:
+Tests are split across five files, all using Fastify's `inject()` with **real** `light-runner` containers against the host Docker daemon:
 
 - `test/e2e/server.test.ts` (13 tests) - core surface: auth, sync + detached runs, artifacts, cancel, delete, list, storage auto-eviction.
 - `test/e2e/languages.test.ts` (8 tests) - Python / Node / shell real workloads: stdin + JSON compute, multi-file project with local import, `crypto.createHash` determinism, env vars, build-time `run` step, nested directory extraction, multi-MB binary streaming, unicode round-trip.
 - `test/e2e/adversarial.test.ts` (17 tests) - failure paths: malformed/wrong/empty Bearer, Zod rejects (absolute path, `..`, empty files, invalid env name, oversize image/entrypoint), `413 Payload Too Large` on body-limit breach, `..` artifact traversal, timeout kills a `sleep 60` in <10 s, `network: 'none'` actually blocks outbound, shell metacharacters in env values passed literally (no command injection).
 - `test/e2e/lifecycle.test.ts` (9 tests) - run lifecycle: real `GET /health` Docker ping, pause then resume then stop on a live detached run, `404` on unknown or finished runs, `400` on invalid stop body, `401` without Bearer.
+- `test/e2e/networks.test.ts` (8 tests) - Docker network CRUD: create then exists then delete round-trip, idempotent create + delete, IPAM subnet, `400` on missing name, `401` without Bearer, `POST /networks/cleanup` removed count.
 
 ---
 

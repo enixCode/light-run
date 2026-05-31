@@ -3,7 +3,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
 import { FastifyOtelInstrumentation } from '@fastify/otel';
-import { RunRequestSchema, StopOptionsSchema } from './schemas.js';
+import {
+  NetworkCleanupSchema,
+  NetworkCreateSchema,
+  RunRequestSchema,
+  StopOptionsSchema,
+} from './schemas.js';
 import {
   artifactDir,
   cancelRun,
@@ -16,6 +21,13 @@ import {
   startRun,
   stopRun,
 } from './runner.js';
+import {
+  cleanupOrphanNetworks,
+  createNetwork,
+  deleteNetwork,
+  networkExists,
+} from './networks.js';
+import type { CreateNetworkOptions } from './networks.js';
 
 export interface CreateServerOptions {
   token?: string;
@@ -154,6 +166,48 @@ export async function createServer(opts: CreateServerOptions = {}): Promise<Fast
       .header('content-type', 'application/octet-stream')
       .header('content-disposition', `attachment; filename="${path.basename(full)}"`)
       .send(fs.createReadStream(full));
+  });
+
+  // --- networks (Docker network CRUD, for a remote light-process) ---
+
+  fastify.post('/networks', async (req, reply) => {
+    if (!auth(req, reply)) return;
+    const parsed = NetworkCreateSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.code(400).send({ error: 'bad_request', details: parsed.error.issues });
+    }
+    const { name, ...opts } = parsed.data;
+    // Zod's .optional() infers `| undefined`, which exactOptionalPropertyTypes
+    // rejects against light-runner's `?:` props. The shapes match field-for-field.
+    const created = await createNetwork(name, opts as CreateNetworkOptions);
+    return reply.code(201).send({ name, created });
+  });
+
+  fastify.get<{ Params: { name: string } }>('/networks/:name', async (req, reply) => {
+    if (!auth(req, reply)) return;
+    const exists = await networkExists(req.params.name);
+    return reply.send({ name: req.params.name, exists });
+  });
+
+  fastify.delete<{ Params: { name: string } }>('/networks/:name', async (req, reply) => {
+    if (!auth(req, reply)) return;
+    try {
+      await deleteNetwork(req.params.name);
+      return reply.code(204).send();
+    } catch (err) {
+      // deleteNetwork throws when the network still has active endpoints.
+      return reply.code(409).send({ error: 'network_in_use', message: (err as Error).message });
+    }
+  });
+
+  fastify.post('/networks/cleanup', async (req, reply) => {
+    if (!auth(req, reply)) return;
+    const parsed = NetworkCleanupSchema.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      return reply.code(400).send({ error: 'bad_request', details: parsed.error.issues });
+    }
+    const removed = await cleanupOrphanNetworks(parsed.data);
+    return reply.send({ removed });
   });
 
   return fastify;
