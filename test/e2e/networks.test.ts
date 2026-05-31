@@ -8,7 +8,7 @@ import { createServer } from '../../src/index.js';
 import { deleteNetwork } from '../../src/networks.js';
 import type { FastifyInstance } from 'fastify';
 
-const dockerAvailable = spawnSync('docker', ['--version'], { stdio: 'ignore' }).status === 0;
+const dockerAvailable = spawnSync('docker', ['info'], { stdio: 'ignore' }).status === 0;
 const maybe = dockerAvailable ? describe : describe.skip;
 
 const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'light-run-networks-'));
