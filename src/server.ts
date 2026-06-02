@@ -51,6 +51,28 @@ export async function createServer(opts: CreateServerOptions = {}): Promise<Fast
   const otel = new FastifyOtelInstrumentation({ recordExceptions: true });
   await fastify.register(otel.plugin());
 
+  // Tolerate an empty body on application/json requests. Bodyless lifecycle
+  // calls (POST /runs/:id/{stop,cancel,pause,resume}, DELETE /networks/:name)
+  // legitimately carry no body, but a client that still sends
+  // `content-type: application/json` would otherwise be rejected by Fastify's
+  // default parser with 400 FST_ERR_CTP_EMPTY_JSON_BODY before the handler runs
+  // (the /stop handler already reads `req.body ?? {}`). Empty -> undefined;
+  // genuinely malformed JSON still 400s.
+  fastify.addContentTypeParser(
+    'application/json',
+    { parseAs: 'string' },
+    (_req, body, done) => {
+      const text = (body as string).trim();
+      if (text === '') return done(null, undefined);
+      try {
+        done(null, JSON.parse(text));
+      } catch (err) {
+        (err as Error & { statusCode?: number }).statusCode = 400;
+        done(err as Error, undefined);
+      }
+    },
+  );
+
   const auth = makeAuth(opts.token);
 
   fastify.get('/health', async (_req, reply) => {

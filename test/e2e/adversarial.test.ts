@@ -209,6 +209,27 @@ maybe('light-run adversarial', () => {
     assert.equal(res.statusCode, 404);
   });
 
+  it('content-type: empty json body on a bodyless route reaches the handler (404, not 400)', async () => {
+    // A bodyless lifecycle call that still declares application/json must NOT be
+    // rejected by Fastify's parser with 400 FST_ERR_CTP_EMPTY_JSON_BODY: it must
+    // reach the handler, which 404s on the unknown id.
+    const res = await server.inject({
+      method: 'POST', url: '/runs/does-not-exist/cancel',
+      headers: { ...AUTH, 'content-type': 'application/json' },
+      payload: '',
+    });
+    assert.equal(res.statusCode, 404);
+  });
+
+  it('content-type: genuinely malformed json body is still rejected with 400', async () => {
+    const res = await server.inject({
+      method: 'POST', url: '/run',
+      headers: { ...AUTH, 'content-type': 'application/json' },
+      payload: '{ not valid json',
+    });
+    assert.equal(res.statusCode, 400);
+  });
+
   // ==========================================================
   // Real-container behaviour
   // ==========================================================
