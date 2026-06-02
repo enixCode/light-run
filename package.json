@@ -64,7 +64,7 @@
     "@opentelemetry/sdk-trace-base": "^2.7.0",
     "@opentelemetry/semantic-conventions": "^1.30.0",
     "fastify": "^5.8.5",
-    "light-runner": "^0.16.1",
+    "light-runner": "^0.16.2",
     "zod": "^4.3.6"
   }
 }
