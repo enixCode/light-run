@@ -1,0 +1,59 @@
+---
+title: HTTP API
+description: Routes for runs, artifacts and networks.
+---
+
+When a token is configured, every route except `/health` requires `Authorization: Bearer <token>`. The full request/response types are in the [API reference](/docs/api).
+
+## Health
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/health` | Liveness + a real Docker daemon check. `503` when the daemon is down. |
+
+## Runs
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/run` | Run a container. Returns a `RunState`; with `detached: true`, returns `202 { id }`. |
+| GET | `/runs` | List tracked runs. |
+| GET | `/runs/:id` | Get a run's state (status, exit code, logs, artifacts). |
+| POST | `/runs/:id/cancel` | Cancel a run. |
+| POST | `/runs/:id/stop` | Graceful stop (SIGTERM then SIGKILL after a grace period). |
+| POST | `/runs/:id/pause` | Pause a running container. |
+| POST | `/runs/:id/resume` | Resume a paused container. |
+| DELETE | `/runs/:id` | Remove a finished run and its artifacts. |
+
+### POST /run body
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `image` | string | Docker image (required). |
+| `entrypoint` | string | Command, run via `sh -c`. |
+| `files` | object | `{ relativePath: contents }`; at least one, no absolute paths, no `..`. |
+| `extract` | string[] | Container paths to capture as artifacts. |
+| `run` | string[] | Build-time setup steps (cached image layer). Operator-trusted. |
+| `timeout` | number | Milliseconds before the container is killed. |
+| `networks` | string[] | Docker networks; first is primary, rest connected after create. Must pre-exist. |
+| `env` | object | `{ NAME: value }` injected into the container. |
+| `workdir` | string | Container working directory. |
+| `detached` | boolean | Return `202 { id }` and run in the background. |
+| `callbackUrl` / `callbackSecret` | string | POST the final state to a URL, optionally HMAC-signed. |
+
+## Artifacts
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/runs/:id/artifacts` | List a run's artifacts. |
+| GET | `/runs/:id/artifacts/*` | Download a file, or list a subdirectory. Literal `..` is rejected; the resolved path must stay inside the run's artifact dir. |
+
+## Networks
+
+For a remote orchestrator (e.g. light-process) that has no shell access to the host.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/networks` | Create a Docker network. |
+| GET | `/networks/:name` | Whether a network exists. |
+| DELETE | `/networks/:name` | Delete a network (`409` if it still has active endpoints). |
+| POST | `/networks/cleanup` | Sweep orphan networks by prefix and age. |

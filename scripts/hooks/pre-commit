@@ -1,7 +1,8 @@
 #!/usr/bin/env sh
 # Pre-commit hook for light-run.
-# Regenerates docs/api/ ONLY if files under src/ are staged. Keeps the commit
-# UX snappy for pure-test or pure-config commits.
+# Regenerates the Fumadocs API reference (website/content/docs/api) ONLY if
+# files under src/ are staged. Keeps the commit UX snappy for pure-test or
+# pure-config commits.
 #
 # Installed by: npm run setup:hooks
 # Source of truth: scripts/hooks/pre-commit (this file)
@@ -14,10 +15,10 @@ staged=$(git diff --cached --name-only --diff-filter=ACMR)
 # Only regenerate if at least one src/ file is staged.
 echo "$staged" | grep -qE '^src/' || exit 0
 
-echo "[pre-commit] src/ changed - regenerating docs/api/ ..."
-npm run --silent docs > /dev/null
+echo "[pre-commit] src/ changed - regenerating the API reference ..."
+npm run --silent docs:api > /dev/null
 
-# Stage the regenerated docs so they land in the same commit.
-git add docs/api/
+# Stage the regenerated API so it lands in the same commit.
+git add website/content/docs/api/
 
-echo "[pre-commit] docs/api/ updated and staged."
+echo "[pre-commit] website/content/docs/api/ updated and staged."

@@ -1,0 +1,34 @@
+---
+title: Overview
+description: A thin HTTP server wrapping the light-runner SDK.
+---
+
+`light-run` is a thin HTTP server around the [light-runner](https://github.com/enixCode/light-runner) execution SDK. It receives inline files, a Docker image and an entrypoint over HTTP, runs them in a container via light-runner, and serves the extracted artifacts back over HTTP.
+
+No GitHub fetch, no workflow, no orchestration. When you need to compose runs into pipelines, that is [light-process](https://github.com/enixCode/light-process)'s job.
+
+## Request lifecycle
+
+```
+POST /run { image, entrypoint, files, extract, ... }
+  -> write files to a tmpdir
+  -> light-runner DockerRunner.run({ dir, extract, detached })
+  -> on exit: scan the artifact dir, clean up the tmpdir
+  -> return RunState { id, status, exitCode, durationMs, artifacts }
+
+GET /runs/:id/artifacts/*  -> binary stream or subdirectory listing
+```
+
+## What it is not
+
+- **Not a cache.** Workload containers are non-deterministic (LLMs, randomness, network). light-run never caches requests or results; memoization needs workflow-level identity that only light-process has. This layer stays stateless past the artifact directory.
+- **Not an orchestrator.** One request runs one container. Fan-out, retries and DAGs live in light-process.
+- **Not the sandbox.** Capability drops, PID limits, memory/CPU budgets, network isolation and the gVisor/Kata runtimes are all light-runner's responsibility. Configure them on the runner.
+
+## The ecosystem
+
+| Project | Role |
+|---------|------|
+| [light-runner](https://github.com/enixCode/light-runner) | Docker execution SDK. The primitive light-run wraps. |
+| **light-run** | This HTTP server. |
+| [light-process](https://github.com/enixCode/light-process) | DAG workflow engine. Calls light-run over HTTP. |

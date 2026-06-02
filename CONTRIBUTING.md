@@ -83,7 +83,7 @@ Run once after cloning:
 npm run setup:hooks
 ```
 
-Installs `scripts/hooks/pre-commit` into `.git/hooks/`. It regenerates and re-stages `docs/api/` (TypeDoc) whenever the staged set touches `src/`. Commits that do not touch `src/` skip the regeneration, so test-only or config-only commits stay fast.
+Installs `scripts/hooks/pre-commit` into `.git/hooks/`. It regenerates and re-stages `website/content/docs/api/` (TypeDoc -> Fumadocs) whenever the staged set touches `src/`. Commits that do not touch `src/` skip the regeneration, so test-only or config-only commits stay fast.
 
 ## Quick commands
 
@@ -92,7 +92,7 @@ npm run build         # clean + tsc -> dist/
 npm test              # 38 e2e tests (Docker-gated, skipped without a daemon)
 npm run test:docker   # same, inside a container with the host socket mounted
 npm run dev           # docker compose up --build (dev server on port 3001)
-npm run docs          # regenerate docs/api/ via TypeDoc
+npm run docs:build    # regenerate the API reference + build the Fumadocs site
 ```
 
 ## Local testing against a live server

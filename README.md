@@ -335,13 +335,16 @@ Without the loader, `@fastify/otel` still works (it is a Fastify plugin, no monk
 
 ## Docs
 
-- **Landing site + API reference:** [enixcode.github.io/light-run](https://enixcode.github.io/light-run/) (same visual system as [light-runner](https://enixcode.github.io/light-runner/)).
+- **Landing + guides + API reference:** [enixcode.github.io/light-run](https://enixcode.github.io/light-run/), a Fumadocs (Next.js static export) site under `website/`, sharing the `light-landing-page` component with the rest of the ecosystem.
 - **Local build:**
   ```bash
-  npm run docs   # regenerates docs/api/ from src/index.ts via TypeDoc
+  npm run docs:api     # regenerate the API reference into website/content/docs/api
+  npm run docs:dev     # docs:api + the Fumadocs dev server
+  npm run docs:build   # docs:api + the static export (website/out)
   ```
-- **Pre-commit hook:** run `npm run setup:hooks` once after cloning. It installs `scripts/hooks/pre-commit` into `.git/hooks/`, which regenerates and re-stages `docs/api/` whenever staged files include something under `src/`. Commits that do not touch `src/` skip the regeneration - no cost on test-only or config-only changes.
-- `docs/index.html` is the hand-written landing page. `docs/api/` is auto-generated and committed so GitHub Pages can serve it straight from `main/docs/` without a build step.
+- **API reference** is generated from `src/index.ts` by TypeDoc (markdown) and post-processed for Fumadocs by `scripts/gen-fumadocs-api.mjs`. The landing content lives in `website/src/app/(home)/data.tsx`; the guides in `website/content/docs/`.
+- **Pre-commit hook:** `npm run setup:hooks` installs `scripts/hooks/pre-commit`, which regenerates and re-stages `website/content/docs/api/` whenever staged files include something under `src/`.
+- **Deploy:** `.github/workflows/docs.yml` builds `website/` and publishes to GitHub Pages on every push to `main`. The Pages source must be set to "GitHub Actions" in the repo settings.
 
 ---
 
