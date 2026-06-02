@@ -1,0 +1,96 @@
+name: Docs
+
+# Build the Fumadocs site (website/, a Next.js static export with the shared
+# light-landing-page home, the MDX guides, and a TypeDoc-generated API
+# reference) and deploy it to GitHub Pages on every push to main that touches
+# the docs sources or the public surface they describe.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'website/**'
+      - 'src/**'
+      - 'scripts/gen-fumadocs-api.mjs'
+      - 'typedoc.json'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/docs.yml'
+  # Build (but do not deploy) on PRs that touch the docs surface, so a broken
+  # site is caught before it can reach main's Pages deploy.
+  pull_request:
+    branches: [main]
+    paths:
+      - 'website/**'
+      - 'src/**'
+      - 'scripts/gen-fumadocs-api.mjs'
+      - 'typedoc.json'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/docs.yml'
+  workflow_dispatch:
+
+# One concurrent deploy at a time. Cancel in-flight deploys when a newer push
+# lands - the latest commit is the one users care about.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    name: Build Fumadocs site
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Node.js 24
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      # Root deps (typedoc + typedoc-plugin-markdown) power the API generation.
+      - name: Install root dependencies
+        run: npm ci
+
+      # Regenerate the API reference from the current src/ so it can never
+      # drift from the code.
+      - name: Regenerate the API reference
+        run: npm run docs:api
+
+      # The website is its own package; it pulls the shared landing
+      # (light-landing-page) via its lockfile.
+      # `npm install` (not `ci`): the committed website lockfile can miss
+      # platform-specific optional deps (e.g. linux @emnapi) when it was
+      # generated on another OS, which would make the strict `ci` fail here.
+      - name: Install website dependencies
+        run: npm --prefix website install --no-audit --no-fund
+
+      - name: Build the static export
+        run: npm --prefix website run build
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: website/out
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    # Only deploy from main; PR runs stop after the build job above.
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

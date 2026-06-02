@@ -2,22 +2,18 @@
   "$schema": "https://typedoc.org/schema.json",
   "entryPoints": ["src/index.ts"],
   "tsconfig": "tsconfig.json",
-  "out": "docs/api",
+  "out": "website/content/docs/api",
   "name": "light-run",
   "readme": "none",
+  "gitRevision": "main",
   "includeVersion": true,
   "excludeInternal": true,
   "excludePrivate": true,
   "excludeProtected": false,
   "disableSources": false,
-  "githubPages": true,
-  "hideGenerator": false,
-  "navigationLinks": {
-    "Homepage": "https://enixcode.github.io/light-run/",
-    "GitHub": "https://github.com/enixCode/light-run",
-    "npm": "https://www.npmjs.com/package/light-run"
-  },
-  "sidebarLinks": {
-    "Main site": "../index.html"
-  }
+  "plugin": ["typedoc-plugin-markdown"],
+  "hideBreadcrumbs": false,
+  "useCodeBlocks": true,
+  "expandObjects": true,
+  "entryFileName": "index"
 }

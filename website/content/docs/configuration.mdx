@@ -1,0 +1,34 @@
+---
+title: Configuration
+description: Environment variables and CLI flags.
+---
+
+## CLI flags
+
+`light-run serve` accepts `--port`, `--host`, `--token` and `--body-limit`. Each maps to an env var below.
+
+## Environment variables
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `LIGHT_RUN_TOKEN` | (none) | Bearer token. Unset = open server with a startup warning. CLI-only. |
+| `LIGHT_RUN_PORT` | `8080` | Listen port. CLI-only. |
+| `LIGHT_RUN_HOST` | `0.0.0.0` | Listen host. CLI-only. |
+| `LIGHT_RUN_BODY_LIMIT` | `10485760` (10 MiB) | Max POST body. CLI-only; library users pass `createServer({ bodyLimit })`. |
+| `LIGHT_RUN_ARTIFACTS_DIR` | `~/.light-run/artifacts` | Artifact root. Read lazily. |
+| `LIGHT_RUN_MAX_ARTIFACTS_BYTES` | `21474836480` (20 GiB) | Total-size cap before oldest-run auto-eviction. |
+
+## OpenTelemetry
+
+light-run auto-traces every route (`@fastify/otel`) and emits business spans. Nothing is exported unless you opt in:
+
+| Variable | Effect |
+|----------|--------|
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | Export traces + metrics (OTLP/HTTP) to this URL. Set it on every layer so a trace stitches across light-process -> light-run -> light-runner. |
+| `LIGHT_RUN_OTEL_DEBUG=1` | Print spans to stdout (ConsoleSpanExporter), no backend needed. |
+| `OTEL_SERVICE_NAME` | Identity on every span/metric (default `light-run`). |
+| `LIGHT_RUN_VERSION` | Override the `service.version` attached to spans. |
+
+With neither `OTEL_EXPORTER_OTLP_ENDPOINT` nor `LIGHT_RUN_OTEL_DEBUG` set, the SDK never starts: zero runtime cost.
+
+Container stdout/stderr is a separate channel from OTel: read it from `GET /runs/:id` (the `logs` array), not from your tracing backend.

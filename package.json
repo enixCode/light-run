@@ -26,8 +26,10 @@
     "dev": "docker compose up --build",
     "test": "npm run clean && tsc -p tsconfig.test.json && node --test \"dist/test/**/*.test.js\"",
     "test:docker": "docker compose -f docker-compose.test.yml run --rm --build test",
-    "docs": "node -e \"require('node:fs').rmSync('docs/api',{recursive:true,force:true})\" && typedoc",
-    "preversion": "npm run docs && git add docs/api/",
+    "docs:api": "node scripts/gen-fumadocs-api.mjs",
+    "docs:dev": "npm run docs:api && npm --prefix website run dev",
+    "docs:build": "npm run docs:api && npm --prefix website run build",
+    "preversion": "npm run docs:api && git add website/content/docs/api/",
     "setup:hooks": "node scripts/install-hooks.js",
     "prepublishOnly": "npm run build"
   },
@@ -47,6 +49,7 @@
   "devDependencies": {
     "@types/node": "^25.6.0",
     "typedoc": "^0.28.19",
+    "typedoc-plugin-markdown": "^4.11.0",
     "typescript": "^6.0.3"
   },
   "dependencies": {

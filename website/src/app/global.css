@@ -1,0 +1,27 @@
+@import 'tailwindcss';
+@import 'fumadocs-ui/css/neutral.css';
+@import 'fumadocs-ui/css/preset.css';
+
+html {
+  scrollbar-gutter: stable;
+}
+
+html > body[data-scroll-locked] {
+  margin-right: 0px !important;
+  --removed-body-scroll-bar-size: 0px !important;
+}
+
+/*
+ * Accent aligned with the light-process docs palette: Tailwind blue-600 on
+ * the neutral gray scale (the `neutral` preset above). Overrides win because
+ * they come after the preset @imports.
+ */
+:root {
+  --color-fd-primary: hsl(221, 83%, 53%); /* blue-600 */
+  --color-fd-primary-foreground: hsl(0, 0%, 100%);
+}
+
+.dark {
+  --color-fd-primary: hsl(213, 94%, 68%); /* blue-400, lighter for dark contrast */
+  --color-fd-primary-foreground: hsl(222, 47%, 11%);
+}
