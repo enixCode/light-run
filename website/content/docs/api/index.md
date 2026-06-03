@@ -6,6 +6,7 @@ title: "API reference"
 
 - [CreateServerOptions](/docs/api/interfaces/CreateServerOptions)
 - [ExtractResult](/docs/api/interfaces/ExtractResult)
+- [MaintenanceReport](/docs/api/interfaces/MaintenanceReport)
 - [RunnerOptions](/docs/api/interfaces/RunnerOptions)
 
 ## Type Aliases
@@ -26,3 +27,4 @@ title: "API reference"
 ## Functions
 
 - [createServer](/docs/api/functions/createServer)
+- [runMaintenance](/docs/api/functions/runMaintenance)
