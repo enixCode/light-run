@@ -263,11 +263,21 @@ No request/result caching, no content-addressable file store, no memoization. `l
 
 Artifacts are kept under `~/.light-run/artifacts/<run-id>/` on the host, where `<run-id>` is the light-runner container name (e.g. `light-runner-3f9c2a1b4d5e`), not a UUID. Temporary working directories under `os.tmpdir()` are cleaned as soon as the container exits.
 
-Run state is **persisted by light-runner** in its state directory (`LIGHT_RUNNER_STATE_DIR`, default `~/.light-runner/state`, one JSON per run). `light-run` is a stateless projection over it: `GET /runs` and `GET /runs/:id` read `listStates` / `readState`, so a server restart no longer forgets runs. On boot (and hourly) light-run reconciles runs left `running` by a crashed process to `failed` (`cleanupOrphanStates`) and garbage-collects old terminal state files (`cleanupOldStates`). Lifecycle controls (`cancel` / `stop` / `pause` / `resume`) on a still-running detached run survive a restart by re-attaching to the container (`DockerRunner.attach`); live `onLog` lines are not replayed after a re-attach (use the run's artifacts).
+Run state is **persisted by light-runner** in its state directory (`LIGHT_RUNNER_STATE_DIR`, default `~/.light-runner/state`, one JSON per run). `light-run` is a stateless projection over it: `GET /runs` and `GET /runs/:id` read `listStates` / `readState`, so a server restart no longer forgets runs. A periodic maintenance sweep (see [below](#periodic-maintenance)) reconciles runs left `running` by a crashed process to `failed` and garbage-collects old terminal state files. Lifecycle controls (`cancel` / `stop` / `pause` / `resume`) on a still-running detached run survive a restart by re-attaching to the container (`DockerRunner.attach`); live `onLog` lines are not replayed after a re-attach (use the run's artifacts).
 
 ### Auto-eviction
 
 After every finished run, `light-run` scans the artifact root. If the **total size exceeds the cap**, the oldest run directories (by creation time) are removed until the total is back under the cap. Running runs and the run that just finished are never evicted - the client may still be about to download them. When a directory is evicted, the matching run state file is also dropped (subsequent `GET /runs/:id` returns `404`).
+
+### Periodic maintenance
+
+Per-run resources are freed the instant a run ends (the container and its volume by light-runner, the tmpdir by light-run). A periodic sweep reclaims what crashes, TTLs and size caps leave behind. `light-run serve` runs it on boot, hourly, and at shutdown; library embedders call `runMaintenance()` on their own schedule. Every step is best-effort and isolated, so one daemon hiccup never stops the others, and the reclaim policies (ages, TTLs, byte budgets) live in light-runner:
+
+- **States** - runs left `running` by a crashed process are reconciled to `failed`; terminal state files past the size budget are evicted.
+- **Containers + volumes** - orphans left by a crashed host are reaped (`reapOrphans`, default older than 5 min).
+- **Cache images** - `run[]`-derived build-cache images are evicted (default 7 days since last use).
+- **Networks** - run-scoped light-process networks (`lp-*`) with no attached container are removed (default older than 30 min).
+- **Dangling images** - untagged `<none>` image layers left by re-pulls and rebuilds are pruned. Tagged base images are never touched.
 
 ### Environment variables
 

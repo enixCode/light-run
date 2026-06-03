@@ -1,5 +1,9 @@
 export { createServer } from './server.js';
 export type { CreateServerOptions } from './server.js';
+/* Periodic resource reclamation. `light-run serve` arms this on a timer;
+   library embedders schedule it themselves. */
+export { runMaintenance } from './runner.js';
+export type { MaintenanceReport } from './runner.js';
 export type { RunRequest, RunState, RunStatus, ArtifactEntry } from './schemas.js';
 export { RunRequestSchema, RunStateSchema, RunStatusSchema, ArtifactEntrySchema } from './schemas.js';
 

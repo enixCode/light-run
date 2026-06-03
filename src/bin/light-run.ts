@@ -14,19 +14,27 @@ import '../instrumentation.js';
 
 import { parseArgs } from 'node:util';
 import type { FastifyBaseLogger } from 'fastify';
-import { DockerRunner } from 'light-runner';
 import { createServer } from '../server.js';
+import { runMaintenance } from '../runner.js';
 
-const CACHE_SWEEP_INTERVAL_MS = 60 * 60 * 1000;
+const MAINTENANCE_INTERVAL_MS = 60 * 60 * 1000;
 
-async function sweepCache(log: FastifyBaseLogger): Promise<void> {
+// Reclaim what crashes, size caps and TTLs leave behind: crashed-run states,
+// orphan containers/volumes, expired cache images, orphan light-process
+// networks, and dangling image layers. Per-run teardown already runs the
+// instant a run ends; this is the time-based safety net. runMaintenance
+// isolates each reclaimer, so this never throws on a single daemon hiccup.
+async function sweepMaintenance(log: FastifyBaseLogger): Promise<void> {
   try {
-    const removed = await DockerRunner.cleanupOrphanCache();
-    if (removed > 0) log.info({ event: 'cache_cleanup', removed }, 'cache cleanup');
+    const r = await runMaintenance();
+    const total =
+      r.reconciled + r.statesEvicted + r.containers + r.volumes +
+      r.cacheImages + r.networks + r.danglingImages;
+    if (total > 0) log.info({ event: 'maintenance', ...r }, 'maintenance sweep');
   } catch (err) {
     log.warn(
-      { event: 'cache_cleanup_failed', err: (err as Error).message },
-      'cache cleanup failed',
+      { event: 'maintenance_failed', err: (err as Error).message },
+      'maintenance sweep failed',
     );
   }
 }
@@ -89,18 +97,18 @@ if (!token) {
 
 const fastify = await createServer({ token, bodyLimit, logger: true });
 
-const cacheSweepTimer = setInterval(() => { void sweepCache(fastify.log); }, CACHE_SWEEP_INTERVAL_MS);
-cacheSweepTimer.unref();
+const maintenanceTimer = setInterval(() => { void sweepMaintenance(fastify.log); }, MAINTENANCE_INTERVAL_MS);
+maintenanceTimer.unref();
 
 for (const sig of ['SIGINT', 'SIGTERM'] as const) {
   process.on(sig, async () => {
     fastify.log.info({ event: 'shutdown', signal: sig }, 'shutting down');
-    clearInterval(cacheSweepTimer);
-    await sweepCache(fastify.log);
+    clearInterval(maintenanceTimer);
+    await sweepMaintenance(fastify.log);
     await fastify.close();
     process.exit(0);
   });
 }
 
 await fastify.listen({ port, host });
-void sweepCache(fastify.log);
+void sweepMaintenance(fastify.log);

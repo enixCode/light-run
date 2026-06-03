@@ -2,7 +2,13 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { DockerRunner, deleteState, listStates, readState } from 'light-runner';
+import {
+  DockerRunner,
+  cleanupOrphanNetworks,
+  deleteState,
+  listStates,
+  readState,
+} from 'light-runner';
 import type { Execution, RunState as RunnerState } from 'light-runner';
 import type { ArtifactEntry, RunRequest, RunState, RunStatus } from './schemas.js';
 
@@ -224,6 +230,69 @@ export async function reconcileStates(): Promise<{ reconciled: number; gc: numbe
   const reconciled = await DockerRunner.cleanupOrphanStates();
   const gc = DockerRunner.cleanupOldStates();
   return { reconciled, gc };
+}
+
+/* light-process names its run-scoped networks `lp-<runId>-<alias>`. A periodic
+   sweep of this prefix reclaims networks orphaned when a light-process worker
+   is hard-killed before its teardown runs (a normal finish deletes them
+   itself). light-runner's own `light-runner-isolated` network is never matched. */
+const LP_NETWORK_PREFIX = 'lp-';
+
+export interface MaintenanceReport {
+  reconciled: number;
+  statesEvicted: number;
+  containers: number;
+  volumes: number;
+  cacheImages: number;
+  networks: number;
+  danglingImages: number;
+}
+
+/* Periodic maintenance sweep, armed by the CLI on boot, on an interval, and at
+   shutdown (see src/bin/light-run.ts). Per-run resources (container, volume,
+   tmpdir) are already freed the instant a run ends in startRun; THIS is the
+   safety net for what crashes, size caps and TTLs leave behind, so the system
+   reclaims disk over time instead of only when a new run trips a cap.
+
+   Every step is best-effort and isolated: a daemon hiccup in one reclaimer must
+   not stop the others. The reclaim policies (TTLs, ages, byte budgets) live in
+   light-runner; light-run only schedules them. */
+export async function runMaintenance(): Promise<MaintenanceReport> {
+  const report: MaintenanceReport = {
+    reconciled: 0,
+    statesEvicted: 0,
+    containers: 0,
+    volumes: 0,
+    cacheImages: 0,
+    networks: 0,
+    danglingImages: 0,
+  };
+
+  try {
+    const s = await reconcileStates();
+    report.reconciled = s.reconciled;
+    report.statesEvicted = s.gc;
+  } catch { /* best-effort */ }
+
+  try {
+    const o = await DockerRunner.reapOrphans();
+    report.containers = o.containers;
+    report.volumes = o.volumes;
+  } catch { /* best-effort */ }
+
+  try {
+    report.cacheImages = await DockerRunner.cleanupOrphanCache();
+  } catch { /* best-effort */ }
+
+  try {
+    report.networks = await cleanupOrphanNetworks({ prefix: LP_NETWORK_PREFIX });
+  } catch { /* best-effort */ }
+
+  try {
+    report.danglingImages = await DockerRunner.cleanupDanglingImages();
+  } catch { /* best-effort */ }
+
+  return report;
 }
 
 /* Move the extracted files into the run's final artifact dir. Same-filesystem
