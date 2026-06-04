@@ -12,8 +12,8 @@ description: Environment variables and CLI flags.
 | Variable | Default | Purpose |
 |----------|---------|---------|
 | `LIGHT_RUN_TOKEN` | (none) | Bearer token. Unset = open server with a startup warning. CLI-only. |
-| `LIGHT_RUN_PORT` | `8080` | Listen port. CLI-only. |
-| `LIGHT_RUN_HOST` | `0.0.0.0` | Listen host. CLI-only. |
+| `LIGHT_RUN_PORT` | `3000` | Listen port. CLI-only. |
+| `LIGHT_RUN_HOST` | `127.0.0.1` | Listen host. CLI-only. |
 | `LIGHT_RUN_BODY_LIMIT` | `10485760` (10 MiB) | Max POST body. CLI-only; library users pass `createServer({ bodyLimit })`. |
 | `LIGHT_RUN_ARTIFACTS_DIR` | `~/.light-run/artifacts` | Artifact root. Read lazily. |
 | `LIGHT_RUN_MAX_ARTIFACTS_BYTES` | `21474836480` (20 GiB) | Total-size cap before oldest-run auto-eviction. |

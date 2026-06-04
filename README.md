@@ -31,7 +31,7 @@
 | --------------- | ------------------------------------------------------------ | ------------- |
 | `light-runner`  | Docker execution SDK - one container, exit code, files       | released      |
 | `light-run`     | HTTP wrapper around `light-runner`                           | **this repo** |
-| `light-process` | DAG orchestration on top of `light-run`                      | planned       |
+| `light-process` | DAG orchestration on top of `light-run`                      | released      |
 
 Use `light-runner` when you already have a folder on disk. Use `light-run` when you want to post files + an image + a command over HTTP.
 
@@ -106,7 +106,7 @@ You get back the final run state once the container exits:
 
 ```json
 {
-  "id": "light-runner-3f9c2a1b4d5e",
+  "id": "3f9c2a1b-4d5e-4a6b-8c7d-9e0f1a2b3c4d",
   "status": "succeeded",
   "startedAt": "2026-04-20T10:00:00.000Z",
   "finishedAt": "2026-04-20T10:00:03.421Z",
@@ -261,7 +261,7 @@ No request/result caching, no content-addressable file store, no memoization. `l
 
 ## Storage
 
-Artifacts are kept under `~/.light-run/artifacts/<run-id>/` on the host, where `<run-id>` is the light-runner container name (e.g. `light-runner-3f9c2a1b4d5e`), not a UUID. Temporary working directories under `os.tmpdir()` are cleaned as soon as the container exits.
+Artifacts are kept under `~/.light-run/artifacts/<run-id>/` on the host, where `<run-id>` is a server-generated UUID v4 (e.g. `3f9c2a1b-4d5e-4a6b-8c7d-9e0f1a2b3c4d`), not the light-runner container name. Temporary working directories under `os.tmpdir()` are cleaned as soon as the container exits.
 
 Run state is **persisted by light-runner** in its state directory (`LIGHT_RUNNER_STATE_DIR`, default `~/.light-runner/state`, one JSON per run). `light-run` is a stateless projection over it: `GET /runs` and `GET /runs/:id` read `listStates` / `readState`, so a server restart no longer forgets runs. A periodic maintenance sweep (see [below](#periodic-maintenance)) reconciles runs left `running` by a crashed process to `failed` and garbage-collects old terminal state files. Lifecycle controls (`cancel` / `stop` / `pause` / `resume`) on a still-running detached run survive a restart by re-attaching to the container (`DockerRunner.attach`); live `onLog` lines are not replayed after a re-attach (use the run's artifacts).
 
