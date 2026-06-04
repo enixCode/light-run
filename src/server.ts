@@ -35,9 +35,30 @@ export interface CreateServerOptions {
   bodyLimit?: number;
 }
 
+// Secret-bearing request fields. Fastify's default request serializer does not
+// log the body, so this redaction is a guard against any future serializer
+// change rather than a fix for a current leak - secrets must never reach logs.
+const REDACT_PATHS = ['req.body.env', 'req.body.callbackSecret'];
+
+/** Enable Pino secret redaction whenever logging is on (preserving any caller redact paths). */
+function resolveLogger(
+  logger: boolean | Record<string, unknown> | undefined,
+): boolean | Record<string, unknown> {
+  if (!logger) return false;
+  const base: Record<string, unknown> = logger === true ? {} : { ...logger };
+  const prev = base.redact;
+  const prevPaths: string[] = Array.isArray(prev)
+    ? (prev as string[])
+    : prev && typeof prev === 'object' && Array.isArray((prev as { paths?: unknown }).paths)
+      ? (prev as { paths: string[] }).paths
+      : [];
+  base.redact = { paths: [...new Set([...prevPaths, ...REDACT_PATHS])], censor: '[REDACTED]' };
+  return base;
+}
+
 export async function createServer(opts: CreateServerOptions = {}): Promise<FastifyInstance> {
   const fastify = Fastify({
-    logger: opts.logger ?? false,
+    logger: resolveLogger(opts.logger),
     bodyLimit: opts.bodyLimit ?? 10 * 1024 * 1024,
   });
 

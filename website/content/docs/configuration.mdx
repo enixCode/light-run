@@ -32,3 +32,11 @@ light-run auto-traces every route (`@fastify/otel`) and emits business spans. No
 With neither `OTEL_EXPORTER_OTLP_ENDPOINT` nor `LIGHT_RUN_OTEL_DEBUG` set, the SDK never starts: zero runtime cost.
 
 Container stdout/stderr is a separate channel from OTel: read it from `GET /runs/:id` (the `logs` array), not from your tracing backend.
+
+## Secrets
+
+light-run forwards the `env` you pass in `POST /run` straight into the container. A few things to know:
+
+- **Container output is returned verbatim.** The `logs` array on `GET /runs/:id` (and the sync response and the callback body) is the container's raw stdout/stderr. If your workload prints a secret (`echo $API_KEY`, a stack trace), it lands in those responses. light-run does not scrub it - keep secrets out of what your code prints.
+- **Use TLS for a remote light-run.** The `POST /run` body, including `env` values, travels in clear HTTP. On localhost that is fine; if light-run is reachable over a network, put it behind TLS (a reverse proxy) and keep the port off the public internet.
+- **`env` is visible on the host.** Values passed as container env are readable via `docker inspect` for the container's lifetime by anyone with Docker socket access. For stronger isolation, prefer file-based secrets mounted into the container over env vars.
