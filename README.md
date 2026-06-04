@@ -106,7 +106,7 @@ You get back the final run state once the container exits:
 
 ```json
 {
-  "id": "3f9c2a1b-4d5e-4a6b-8c7d-9e0f1a2b3c4d",
+  "id": "light-runner-3f9c2a1b4d5e",
   "status": "succeeded",
   "startedAt": "2026-04-20T10:00:00.000Z",
   "finishedAt": "2026-04-20T10:00:03.421Z",
@@ -212,11 +212,12 @@ Usage:
 Options:
   --port <n>         Listen port (default 3000, env LIGHT_RUN_PORT)
   --host <h>         Listen host (default 127.0.0.1, env LIGHT_RUN_HOST)
-  --token <t>        Bearer token required on every non-/health endpoint
+  --token <t>        Bearer token required on every route except /health
                      (env LIGHT_RUN_TOKEN; omit to leave open)
   --body-limit <n>   Max POST body size in bytes (default 10485760 = 10 MiB,
                      env LIGHT_RUN_BODY_LIMIT). Each request is parsed in
                      memory, so a big cap is a memory-per-request cost.
+  --version, -v      Print the version and exit
   --help, -h         Show this message
 ```
 
@@ -261,9 +262,9 @@ No request/result caching, no content-addressable file store, no memoization. `l
 
 ## Storage
 
-Artifacts are kept under `~/.light-run/artifacts/<run-id>/` on the host, where `<run-id>` is a server-generated UUID v4 (e.g. `3f9c2a1b-4d5e-4a6b-8c7d-9e0f1a2b3c4d`), not the light-runner container name. Temporary working directories under `os.tmpdir()` are cleaned as soon as the container exits.
+Artifacts are kept under `~/.light-run/artifacts/<run-id>/` on the host, where `<run-id>` is the light-runner container name (e.g. `light-runner-3f9c2a1b4d5e`). Temporary working directories under `os.tmpdir()` are cleaned as soon as the container exits.
 
-Run state is **persisted by light-runner** in its state directory (`LIGHT_RUNNER_STATE_DIR`, default `~/.light-runner/state`, one JSON per run). `light-run` is a stateless projection over it: `GET /runs` and `GET /runs/:id` read `listStates` / `readState`, so a server restart no longer forgets runs. A periodic maintenance sweep (see [below](#periodic-maintenance)) reconciles runs left `running` by a crashed process to `failed` and garbage-collects old terminal state files. Lifecycle controls (`cancel` / `stop` / `pause` / `resume`) on a still-running detached run survive a restart by re-attaching to the container (`DockerRunner.attach`); live `onLog` lines are not replayed after a re-attach (use the run's artifacts).
+Run state is **persisted by light-runner** in its state directory (`LIGHT_RUNNER_STATE_DIR`, default `~/.light-runner/state`, one JSON per run). `light-run` is a stateless projection over it: `GET /runs` and `GET /runs/:id` read `listStates` / `readState`, so a server restart no longer forgets runs. Fields like `status`, `exitCode`, `durationMs`, and `artifacts` are recovered from disk. The `logs` array is **in-memory only** and is lost on restart (use the run's artifacts for persistent output). A periodic maintenance sweep (see [below](#periodic-maintenance)) reconciles runs left `running` by a crashed process to `failed` and garbage-collects old terminal state files. Lifecycle controls (`cancel` / `stop` / `pause` / `resume`) on a still-running detached run survive a restart by re-attaching to the container (`DockerRunner.attach`).
 
 ### Auto-eviction
 
@@ -361,7 +362,7 @@ Without the loader, `@fastify/otel` still works (it is a Fastify plugin, no monk
 ## Testing
 
 ```bash
-npm test              # clean + build + node --test (59 e2e tests, skipped if Docker daemon absent)
+npm test              # clean + build + node --test (60 e2e tests, skipped if Docker daemon absent)
 npm run test:docker   # same inside a container with the host Docker socket mounted
 ```
 

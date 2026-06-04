@@ -30,8 +30,8 @@ curl -s http://localhost:3000/run \
   -d '{
     "image": "python:3.12-alpine",
     "entrypoint": "python main.py",
-    "files": { "main.py": "open(\"out.json\",\"w\").write(\"{\\\"ok\\\":true}\")" },
-    "extract": ["out.json"]
+    "files": { "main.py": "open(\"/app/out.json\",\"w\").write(\"{\\\"ok\\\":true}\")" },
+    "extract": ["/app/out.json"]
   }'
 ```
 
