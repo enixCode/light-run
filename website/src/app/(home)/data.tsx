@@ -2,7 +2,7 @@ import type { LandingData } from 'light-landing-page';
 
 const BASE = '/light-run';
 
-const CODE_HTML = `<span class="k">const</span> res <span class="p">=</span> <span class="k">await</span> <span class="f">fetch</span><span class="p">(</span><span class="s">'http://localhost:8080/run'</span><span class="p">,</span> <span class="p">{</span>
+const CODE_HTML = `<span class="k">const</span> res <span class="p">=</span> <span class="k">await</span> <span class="f">fetch</span><span class="p">(</span><span class="s">'http://localhost:3000/run'</span><span class="p">,</span> <span class="p">{</span>
   <span class="n">method</span>: <span class="s">'POST'</span><span class="p">,</span>
   <span class="n">headers</span>: <span class="p">{</span> <span class="s">'content-type'</span>: <span class="s">'application/json'</span><span class="p">,</span> <span class="n">authorization</span>: <span class="s">'Bearer ...'</span> <span class="p">}</span><span class="p">,</span>
   <span class="n">body</span>: <span class="f">JSON.stringify</span><span class="p">(</span><span class="p">{</span>
@@ -126,7 +126,7 @@ export const lightRunData: LandingData = {
         <p>Stateless past the artifact directory. No caching, ever.</p>
       </>
     ),
-    install: 'npm install -g light-run',
+    install: 'npm install -g @enixcode/light-run',
     codeHtml: CODE_HTML,
   },
   security: {
@@ -234,7 +234,7 @@ export const lightRunData: LandingData = {
     links: [
       { label: 'API', href: `${BASE}/docs/api` },
       { label: 'GitHub', href: 'https://github.com/enixCode/light-run' },
-      { label: 'npm', href: 'https://www.npmjs.com/package/light-run' },
+      { label: 'npm', href: 'https://www.npmjs.com/package/@enixcode/light-run' },
       { label: 'Security', href: '#security' },
       { label: 'MIT', href: 'https://github.com/enixCode/light-run/blob/main/LICENSE' },
     ],
