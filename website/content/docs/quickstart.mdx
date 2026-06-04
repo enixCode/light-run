@@ -6,7 +6,7 @@ description: Install, start the server, and run your first container over HTTP.
 ## Install
 
 ```bash
-npm install -g light-run
+npm install -g @enixcode/light-run
 ```
 
 A running Docker daemon is required on the host: light-run delegates execution to light-runner, which talks to Docker.
@@ -14,7 +14,7 @@ A running Docker daemon is required on the host: light-run delegates execution t
 ## Start the server
 
 ```bash
-light-run serve --port 8080 --token "$LIGHT_RUN_TOKEN"
+light-run serve --port 3000 --token "$LIGHT_RUN_TOKEN"
 ```
 
 Without `--token` the server starts open and prints a warning. Flags: `--port`, `--host`, `--token`, `--body-limit`. Each also has an env var (see [Configuration](/docs/configuration)).
@@ -24,7 +24,7 @@ Without `--token` the server starts open and prints a warning. Flags: `--port`, 
 POST inline files, an image, an entrypoint, and the container paths to extract:
 
 ```bash
-curl -s http://localhost:8080/run \
+curl -s http://localhost:3000/run \
   -H "authorization: Bearer $LIGHT_RUN_TOKEN" \
   -H "content-type: application/json" \
   -d '{
@@ -50,7 +50,7 @@ The response is a `RunState`:
 ## Fetch an artifact
 
 ```bash
-curl -s http://localhost:8080/runs/<id>/artifacts/out.json \
+curl -s http://localhost:3000/runs/<id>/artifacts/out.json \
   -H "authorization: Bearer $LIGHT_RUN_TOKEN"
 ```
 

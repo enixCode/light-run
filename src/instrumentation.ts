@@ -34,7 +34,7 @@ import {
 } from '@opentelemetry/semantic-conventions';
 
 const SERVICE_NAME = process.env.OTEL_SERVICE_NAME ?? 'light-run';
-const SERVICE_VERSION = process.env.LIGHT_RUN_VERSION ?? '0.5.0';
+const SERVICE_VERSION = process.env.LIGHT_RUN_VERSION ?? '0.6.0';
 
 const debugMode = process.env.LIGHT_RUN_OTEL_DEBUG === '1';
 const otlpEndpoint = process.env.OTEL_EXPORTER_OTLP_ENDPOINT;

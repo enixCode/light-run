@@ -12,10 +12,18 @@
 // no monkey-patching needed) so server-side spans are emitted correctly.
 import '../instrumentation.js';
 
+import { readFileSync } from 'node:fs';
 import { parseArgs } from 'node:util';
 import type { FastifyBaseLogger } from 'fastify';
 import { createServer } from '../server.js';
 import { runMaintenance } from '../runner.js';
+
+// Read from package.json so `--version` never drifts from the published version.
+const VERSION = (
+  JSON.parse(readFileSync(new URL('../../../package.json', import.meta.url), 'utf8')) as {
+    version: string;
+  }
+).version;
 
 const MAINTENANCE_INTERVAL_MS = 60 * 60 * 1000;
 
@@ -54,6 +62,7 @@ Options:
                      send large files inline. Each request is parsed in
                      memory, so a big cap is a memory-per-request cost.
   --help, -h         Show this message
+  --version, -v      Print the version and exit
 `;
 
 const { values, positionals } = parseArgs({
@@ -65,8 +74,14 @@ const { values, positionals } = parseArgs({
     token: { type: 'string' },
     'body-limit': { type: 'string' },
     help: { type: 'boolean', short: 'h' },
+    version: { type: 'boolean', short: 'v' },
   },
 });
+
+if (values.version) {
+  process.stdout.write(`${VERSION}\n`);
+  process.exit(0);
+}
 
 if (values.help || positionals.length === 0 || positionals[0] !== 'serve') {
   process.stdout.write(USAGE);
@@ -110,5 +125,15 @@ for (const sig of ['SIGINT', 'SIGTERM'] as const) {
   });
 }
 
-await fastify.listen({ port, host });
+try {
+  await fastify.listen({ port, host });
+} catch (err) {
+  if ((err as NodeJS.ErrnoException).code === 'EADDRINUSE') {
+    process.stderr.write(
+      `error: port ${port} is already in use. Another light-run? Pick a free port with --port.\n`,
+    );
+    process.exit(2);
+  }
+  throw err;
+}
 void sweepMaintenance(fastify.log);
